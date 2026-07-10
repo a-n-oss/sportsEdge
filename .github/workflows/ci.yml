@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sportsedge
+          POSTGRES_PASSWORD: sportsedge_password
+          POSTGRES_DB: sportsedge_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    - name: Install dependencies
+      working-directory: ./apps/api
+      run: |
+        uv venv
+        uv pip install -r requirements.txt
+
+    - name: Run Ruff Lint
+      working-directory: ./apps/api
+      run: uv run ruff check .
+
+    - name: Run Pytest
+      working-directory: ./apps/api
+      env:
+        DATABASE_URL: postgresql://sportsedge:sportsedge_password@localhost:5432/sportsedge_db
+      run: uv run pytest --cov=engine --cov=api --cov-report=xml
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 9
+
+    - name: Install dependencies
+      working-directory: ./apps/web
+      run: pnpm install
+
+    - name: Run ESLint
+      working-directory: ./apps/web
+      run: pnpm lint
+
+    - name: Run Type Check
+      working-directory: ./apps/web
+      run: pnpm tsc --noEmit
+
+    - name: Run Vitest
+      working-directory: ./apps/web
+      run: pnpm test run
+
+  sonarqube:
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: SonarQube Scan
+      uses: sonarsource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
