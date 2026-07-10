@@ -33,13 +33,15 @@ jobs:
         python-version: "3.12"
 
     - name: Install uv
-      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      uses: astral-sh/setup-uv@v8
+      with:
+        enable-cache: true
 
     - name: Install dependencies
       working-directory: ./apps/api
       run: |
         uv venv
-        uv pip install -r requirements.txt
+        uv pip install -r requirements.lock
 
     - name: Run Ruff Lint
       working-directory: ./apps/api
@@ -88,7 +90,7 @@ jobs:
       run: pnpm test
 
     - name: Upload Frontend Coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: frontend-coverage
         path: apps/web/coverage
@@ -101,13 +103,13 @@ jobs:
         fetch-depth: 0
 
     - name: Download Backend Coverage
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: backend-coverage
         path: apps/api
 
     - name: Download Frontend Coverage
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: frontend-coverage
         path: apps/web/coverage
