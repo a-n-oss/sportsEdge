@@ -1,6 +1,7 @@
 import math
-import pytest
+
 from engine.elo import EloEngine
+
 
 def test_expected_score():
     # If ratings are equal, expected score should be 0.5

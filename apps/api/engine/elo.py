@@ -1,5 +1,5 @@
 import math
-from typing import Dict, Tuple
+
 
 class EloEngine:
     MEAN_RATING = 1500.0
@@ -52,7 +52,7 @@ class EloEngine:
         home_rating: float, 
         away_rating: float, 
         league: str
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Calculate win probabilities for a match.
         For soccer (EPL), calculates 3-way probabilities (home, away, draw).
@@ -93,7 +93,7 @@ class EloEngine:
         home_score: float, 
         away_score: float, 
         league: str
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         Calculate updated Elo ratings after a game.
         """
@@ -118,7 +118,8 @@ class EloEngine:
 
         k = EloEngine.get_k_factor(league)
         
-        # MOV multiplier is 1.0 for soccer (EPL doesn't strictly use points diff for Elo scaling typically, but we use point diff = 0 for draws)
+        # MOV multiplier is 1.0 for soccer (EPL doesn't strictly use points diff for Elo scaling typically,
+        # but we use point diff = 0 for draws)
         if league.upper() == "EPL":
             # For soccer, we typically don't apply the MOV multiplier, or if we do, it's based on goal difference.
             # Assuming standard Elo K-factor for EPL handles the weight, but we'll apply standard MOV if requested.
