@@ -13,3 +13,4 @@ pytest-asyncio>=0.23.0
 hishel>=0.0.32
 diskcache>=5.6.3
 respx>=0.21.1
+pytest-cov>=4.1.0
