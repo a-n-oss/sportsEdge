@@ -80,7 +80,7 @@ jobs:
 
     - name: Run Vitest
       working-directory: ./apps/web
-      run: pnpm test run
+      run: pnpm test
 
   sonarqube:
     runs-on: ubuntu-latest
