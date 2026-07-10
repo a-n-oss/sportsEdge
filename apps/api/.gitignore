@@ -1,0 +1,11 @@
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual env
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
