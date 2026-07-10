@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "[pre-push] running verification (lint + types + tests)…"
+./scripts/verify.sh
+echo "[pre-push] REMINDER: SonarQube MCP check (AGENTS.md §3) must be done and green."
+echo "[pre-push] CI enforces the Sonar quality gate — a skipped check will fail the build."

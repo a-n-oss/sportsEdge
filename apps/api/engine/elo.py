@@ -6,21 +6,9 @@ class EloEngine:
     DEFAULT_K = 20.0
     DEFAULT_HOME_ADVANTAGE = 55.0
 
-    LEAGUE_K = {
-        "NFL": 20.0,
-        "NBA": 20.0,
-        "NHL": 20.0,
-        "MLB": 20.0,
-        "EPL": 24.0
-    }
+    LEAGUE_K = {"NFL": 20.0, "NBA": 20.0, "NHL": 20.0, "MLB": 20.0, "EPL": 24.0}
 
-    LEAGUE_HOME_ADVANTAGE = {
-        "NFL": 55.0,
-        "NBA": 55.0,
-        "NHL": 55.0,
-        "MLB": 55.0,
-        "EPL": 55.0
-    }
+    LEAGUE_HOME_ADVANTAGE = {"NFL": 55.0, "NBA": 55.0, "NHL": 55.0, "MLB": 55.0, "EPL": 55.0}
 
     @staticmethod
     def get_k_factor(league: str) -> float:
@@ -48,11 +36,7 @@ class EloEngine:
         return multiplier
 
     @staticmethod
-    def calculate_probabilities(
-        home_rating: float, 
-        away_rating: float, 
-        league: str
-    ) -> dict[str, float]:
+    def calculate_probabilities(home_rating: float, away_rating: float, league: str) -> dict[str, float]:
         """
         Calculate win probabilities for a match.
         For soccer (EPL), calculates 3-way probabilities (home, away, draw).
@@ -60,7 +44,7 @@ class EloEngine:
         """
         home_adv = EloEngine.get_home_advantage(league)
         home_eff_rating = home_rating + home_adv
-        
+
         expected_home = EloEngine.expected_score(home_eff_rating, away_rating)
         expected_away = 1.0 - expected_home
 
@@ -69,30 +53,19 @@ class EloEngine:
             elo_diff = home_eff_rating - away_rating
             d_max = 0.28
             p_draw = d_max * math.exp(-((elo_diff / 400.0) ** 2))
-            
+
             # Scale P(home win) and P(away win) proportionally
             remaining_prob = 1.0 - p_draw
             scaled_home = expected_home * remaining_prob
             scaled_away = expected_away * remaining_prob
-            
-            return {
-                "home": scaled_home,
-                "away": scaled_away,
-                "draw": p_draw
-            }
+
+            return {"home": scaled_home, "away": scaled_away, "draw": p_draw}
         else:
-            return {
-                "home": expected_home,
-                "away": expected_away
-            }
+            return {"home": expected_home, "away": expected_away}
 
     @staticmethod
     def calculate_new_ratings(
-        home_rating: float, 
-        away_rating: float, 
-        home_score: float, 
-        away_score: float, 
-        league: str
+        home_rating: float, away_rating: float, home_score: float, away_score: float, league: str
     ) -> tuple[float, float]:
         """
         Calculate updated Elo ratings after a game.
@@ -117,7 +90,7 @@ class EloEngine:
             elo_diff_winner = 0.0
 
         k = EloEngine.get_k_factor(league)
-        
+
         # MOV multiplier is 1.0 for soccer (EPL doesn't strictly use points diff for Elo scaling typically,
         # but we use point diff = 0 for draws)
         if league.upper() == "EPL":

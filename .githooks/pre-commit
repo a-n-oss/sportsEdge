@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "[pre-commit] running verification (lint + types + tests)…"
+./scripts/verify.sh
