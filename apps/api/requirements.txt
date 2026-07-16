@@ -18,3 +18,4 @@ pytest-cov>=4.1.0
 mypy>=1.10.0
 greenlet>=3.0.3
 testcontainers>=4.4.1
+apscheduler>=3.10.4
