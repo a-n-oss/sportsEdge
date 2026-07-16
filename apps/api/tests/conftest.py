@@ -1,15 +1,25 @@
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer  # type: ignore # 3rd party library lacks stubs
 
 from core.config import settings
 from db.models import Base
 
-# We will use the main DB URL but we wrap tests in a transaction that rolls back
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+# Check if we are running in CI
+is_ci = os.environ.get("CI") == "true"
+
+if is_ci:
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+else:
+    # Use testcontainers locally
+    postgres = PostgresContainer("postgres:16-alpine", driver="asyncpg")
+    postgres.start()
+    engine = create_async_engine(postgres.get_connection_url(), echo=False)
 
 TestingSessionLocal = async_sessionmaker(
     bind=engine,
@@ -18,6 +28,11 @@ TestingSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
+
+
+def pytest_sessionfinish(session, exitstatus):
+    if not is_ci:
+        postgres.stop()
 
 
 @pytest.fixture(scope="session")
@@ -30,14 +45,11 @@ def event_loop():
 
 @pytest_asyncio.fixture()
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    # Create engine inside the current test's loop
-    test_engine = create_async_engine(settings.DATABASE_URL, echo=False)
-
     # Ensure tables exist
-    async with test_engine.begin() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async with test_engine.connect() as connection:
+    async with engine.connect() as connection:
         transaction = await connection.begin()
 
         test_session_maker = async_sessionmaker(
@@ -52,5 +64,3 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
 
         await transaction.rollback()
-
-    await test_engine.dispose()
