@@ -7,8 +7,9 @@ import Link from "next/link"
 
 export const dynamic = 'force-dynamic'
 
-export default async function TeamDetail({ params }: { params: { id: string } }) {
-  const teamId = parseInt(params.id, 10)
+export default async function TeamDetail({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params
+  const teamId = parseInt(resolvedParams.id, 10)
   const [team, history, allGames] = await Promise.all([
     getTeam(teamId),
     getTeamRatingHistory(teamId).catch(() => []),

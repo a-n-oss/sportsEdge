@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from api.deps import verify_admin
 from db.models import Game, RatingHistory, Team
@@ -17,7 +18,17 @@ async def get_leagues():
 
 @router.get("/games")
 async def get_games(db: AsyncSession = Depends(get_db)):  # noqa: B008
-    result = await db.execute(select(Game).order_by(Game.date.desc()).limit(100))
+    stmt = (
+        select(Game)
+        .options(
+            selectinload(Game.home_team),
+            selectinload(Game.away_team),
+            selectinload(Game.prediction),
+        )
+        .order_by(Game.date.desc())
+        .limit(100)
+    )
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 
