@@ -120,3 +120,8 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
     session.add(fetch_run)
 
     await session.commit()
+
+    # Run the Elo and Prediction pipeline
+    from engine.process import run_elo_pipeline
+
+    await run_elo_pipeline(session, league)
