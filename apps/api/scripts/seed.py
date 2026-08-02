@@ -1,7 +1,7 @@
 import asyncio
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -34,7 +34,7 @@ async def seed():
         await session.commit()
 
         # Create Historical Games (Past)
-        past_date = datetime.now(timezone.utc) - timedelta(days=2)
+        past_date = datetime.now(UTC) - timedelta(days=2)
         game_past = Game(
             id=101,
             league="nba",
@@ -49,8 +49,8 @@ async def seed():
         await session.commit()
 
         # Create Upcoming Games (Future)
-        future_date_1 = datetime.now(timezone.utc) + timedelta(days=1)
-        future_date_2 = datetime.now(timezone.utc) + timedelta(days=2)
+        future_date_1 = datetime.now(UTC) + timedelta(days=1)
+        future_date_2 = datetime.now(UTC) + timedelta(days=2)
 
         game_future_1 = Game(
             id=102,

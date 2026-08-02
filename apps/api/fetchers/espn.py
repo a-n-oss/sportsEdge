@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert
@@ -42,7 +42,7 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
     for event in data.get("events", []):
         game_id = int(event["id"])
         game_date_str = event["date"]
-        game_date = datetime.strptime(game_date_str, "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
+        game_date = datetime.strptime(game_date_str, "%Y-%m-%dT%H:%MZ").replace(tzinfo=UTC)
 
         status_name = event.get("status", {}).get("type", {}).get("name", "STATUS_UNKNOWN")
 
@@ -116,7 +116,7 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
         )
         await session.execute(game_stmt)
 
-    fetch_run = FetchRun(timestamp=datetime.now(timezone.utc), league=league, status="success")
+    fetch_run = FetchRun(timestamp=datetime.now(UTC), league=league, status="success")
     session.add(fetch_run)
 
     await session.commit()

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import respx
@@ -80,7 +80,7 @@ async def test_sync_games_upsert(espn_mock_data, get_db_session: AsyncSession):
         assert games[0].status == "STATUS_SCHEDULED"
         assert games[0].home_team_id == 1
         assert games[0].away_team_id == 2
-        assert games[0].date == datetime(2024, 11, 20, 20, 30, tzinfo=timezone.utc)
+        assert games[0].date == datetime(2024, 11, 20, 20, 30, tzinfo=UTC)
 
         # Verify FetchRun was inserted
         result_runs = await get_db_session.execute(select(FetchRun))
