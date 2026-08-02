@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Test reports
+    "coverage/**",
+    "test-results/**",
+    "playwright-report/**",
+    "tests/**", // Playwright tests shouldn't strictly require Next.js linting
   ]),
 ]);
 
