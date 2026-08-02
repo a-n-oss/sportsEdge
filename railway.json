@@ -3,7 +3,17 @@
   "build": {
     "builder": "NIXPACKS",
     "watch": ["apps/api/**", "apps/api/requirements.lock"],
-    "buildCommand": "pip install uv && cd apps/api && uv pip install --system -r requirements.lock"
+    "nixpacksPlan": {
+      "providers": ["python"],
+      "variables": {
+        "NIXPACKS_PYTHON_PACKAGE_MANAGER": "uv"
+      },
+      "phases": {
+        "install": {
+          "cmds": ["cd apps/api && uv pip install --system -r requirements.lock"]
+        }
+      }
+    }
   },
   "deploy": {
     "startCommand": "cd apps/api && python -m uvicorn main:app --host 0.0.0.0 --port $PORT",
