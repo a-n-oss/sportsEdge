@@ -1,7 +1,10 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
 
+from alembic import command
+from alembic.config import Config
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore # 3rd party library lacks stubs
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +14,12 @@ from db.session import AsyncSessionLocal
 from fetchers.espn import LEAGUE_MAP, sync_games
 
 logger = logging.getLogger(__name__)
+
+
+def _run_migrations() -> None:
+    """Run alembic upgrade head synchronously (called from a thread)."""
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
 
 
 async def scheduled_fetch_games():
@@ -27,6 +36,17 @@ async def scheduled_fetch_games():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Run DB migrations on every startup (idempotent)
+    logger.info("Running database migrations...")
+    await asyncio.to_thread(_run_migrations)
+    logger.info("Database migrations complete.")
+
+    # On first boot in production, fetch real data from ESPN
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        logger.info("Production environment detected — triggering initial data sync...")
+        await scheduled_fetch_games()
+        logger.info("Initial data sync complete.")
+
     scheduler = AsyncIOScheduler()
     scheduler.add_job(scheduled_fetch_games, "cron", hour=8)
     scheduler.start()
