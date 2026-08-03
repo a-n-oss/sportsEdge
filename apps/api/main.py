@@ -38,10 +38,14 @@ async def scheduled_fetch_games():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Run DB migrations on every startup (idempotent)
-    logger.info("Running database migrations...")
-    await asyncio.to_thread(_run_migrations)
-    logger.info("Database migrations complete.")
+    # Migrations run via Railway preDeployCommand (or SKIP_MIGRATIONS=0 here).
+    # Avoid blocking /health on Alembic — nested event loops historically deadlocked.
+    if os.getenv("SKIP_MIGRATIONS") == "1":
+        logger.info("SKIP_MIGRATIONS=1 — skipping Alembic on startup")
+    else:
+        logger.info("Running database migrations...")
+        await asyncio.to_thread(_run_migrations)
+        logger.info("Database migrations complete.")
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(scheduled_fetch_games, "cron", hour=8)
