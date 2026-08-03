@@ -77,7 +77,6 @@ export default async function MatchupPage({
 
   const homeForm = formFor(game.home_team_id)
   const awayForm = formFor(game.away_team_id)
-  const homeColors = monogramColors(homeAbbr)
   const awayColors = monogramColors(awayAbbr)
 
   return (
