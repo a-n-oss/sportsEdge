@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,6 +11,15 @@ from db.session import get_db
 from fetchers.espn import LEAGUE_MAP, sync_games
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
+
+_SYNCED_TABLES = (
+    "predictions",
+    "rating_history",
+    "ratings",
+    "games",
+    "teams",
+    "fetch_runs",
+)
 
 
 @router.get("/leagues")
@@ -244,3 +253,22 @@ async def admin_refresh(
     for league in LEAGUE_MAP.keys():
         await sync_games(league, db)
     return {"status": "refresh_completed"}
+
+
+@router.post("/admin/reset-and-refresh")
+async def admin_reset_and_refresh(
+    admin_token: str = Depends(verify_admin),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """Wipe synced sports data, then re-fetch all leagues.
+
+    Required after the team-id namespacing fix: legacy rows used raw ESPN team
+    IDs as primary keys, which collide across leagues and mis-tag teams.
+    """
+    for table in _SYNCED_TABLES:
+        await db.execute(text(f"TRUNCATE {table} CASCADE"))
+    await db.commit()
+
+    for league in LEAGUE_MAP.keys():
+        await sync_games(league, db)
+    return {"status": "reset_and_refresh_completed", "truncated_tables": list(_SYNCED_TABLES)}

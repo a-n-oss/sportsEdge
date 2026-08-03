@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from db.models import Base, FetchRun, Game, Prediction, Rating, RatingHistory, Team
+from fetchers.espn import namespaced_team_id
 
 
 async def seed():
@@ -24,11 +25,15 @@ async def seed():
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
-        # Create Teams
-        lakers = Team(id=1, league="nba", name="Los Angeles Lakers", abbreviation="LAL")
-        celtics = Team(id=2, league="nba", name="Boston Celtics", abbreviation="BOS")
-        warriors = Team(id=3, league="nba", name="Golden State Warriors", abbreviation="GSW")
-        heat = Team(id=4, league="nba", name="Miami Heat", abbreviation="MIA")
+        # Create Teams (namespaced IDs match ESPN sync convention)
+        lakers_id = namespaced_team_id("nba", 13)
+        celtics_id = namespaced_team_id("nba", 2)
+        warriors_id = namespaced_team_id("nba", 9)
+        heat_id = namespaced_team_id("nba", 14)
+        lakers = Team(id=lakers_id, league="nba", name="Los Angeles Lakers", abbreviation="LAL")
+        celtics = Team(id=celtics_id, league="nba", name="Boston Celtics", abbreviation="BOS")
+        warriors = Team(id=warriors_id, league="nba", name="Golden State Warriors", abbreviation="GSW")
+        heat = Team(id=heat_id, league="nba", name="Miami Heat", abbreviation="MIA")
 
         session.add_all([lakers, celtics, warriors, heat])
         await session.commit()
@@ -40,8 +45,8 @@ async def seed():
             league="nba",
             date=past_date,
             status="completed",
-            home_team_id=1,
-            away_team_id=2,
+            home_team_id=lakers_id,
+            away_team_id=celtics_id,
             home_score=110,
             away_score=105,
         )
@@ -57,8 +62,8 @@ async def seed():
             league="nba",
             date=future_date_1,
             status="scheduled",
-            home_team_id=3,
-            away_team_id=1,
+            home_team_id=warriors_id,
+            away_team_id=lakers_id,
             home_score=None,
             away_score=None,
         )
@@ -67,8 +72,8 @@ async def seed():
             league="nba",
             date=future_date_2,
             status="scheduled",
-            home_team_id=2,
-            away_team_id=4,
+            home_team_id=celtics_id,
+            away_team_id=heat_id,
             home_score=None,
             away_score=None,
         )
@@ -76,10 +81,10 @@ async def seed():
         await session.commit()
 
         # Create Rating History
-        rh1 = RatingHistory(team_id=1, game_id=101, elo_rating=1550.0, date=past_date)
-        rh2 = RatingHistory(team_id=2, game_id=101, elo_rating=1480.0, date=past_date)
-        rh3 = RatingHistory(team_id=3, game_id=None, elo_rating=1600.0, date=past_date)
-        rh4 = RatingHistory(team_id=4, game_id=None, elo_rating=1520.0, date=past_date)
+        rh1 = RatingHistory(team_id=lakers_id, game_id=101, elo_rating=1550.0, date=past_date)
+        rh2 = RatingHistory(team_id=celtics_id, game_id=101, elo_rating=1480.0, date=past_date)
+        rh3 = RatingHistory(team_id=warriors_id, game_id=None, elo_rating=1600.0, date=past_date)
+        rh4 = RatingHistory(team_id=heat_id, game_id=None, elo_rating=1520.0, date=past_date)
 
         session.add_all([rh1, rh2, rh3, rh4])
         await session.commit()
@@ -88,10 +93,10 @@ async def seed():
         now = datetime.now(UTC)
         session.add_all(
             [
-                Rating(team_id=1, elo_rating=1550.0, last_updated=now),
-                Rating(team_id=2, elo_rating=1480.0, last_updated=now),
-                Rating(team_id=3, elo_rating=1600.0, last_updated=now),
-                Rating(team_id=4, elo_rating=1520.0, last_updated=now),
+                Rating(team_id=lakers_id, elo_rating=1550.0, last_updated=now),
+                Rating(team_id=celtics_id, elo_rating=1480.0, last_updated=now),
+                Rating(team_id=warriors_id, elo_rating=1600.0, last_updated=now),
+                Rating(team_id=heat_id, elo_rating=1520.0, last_updated=now),
             ]
         )
         await session.commit()

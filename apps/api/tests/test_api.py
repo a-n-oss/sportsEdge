@@ -39,6 +39,12 @@ async def test_admin_refresh_unauthorized(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_admin_reset_and_refresh_unauthorized(async_client: AsyncClient):
+    response = await async_client.post("/api/v1/admin/reset-and-refresh")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_get_team_by_id(async_client: AsyncClient):
     response = await async_client.get("/api/v1/teams/999999")
     assert response.status_code == 404

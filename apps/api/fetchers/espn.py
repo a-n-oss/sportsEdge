@@ -19,6 +19,25 @@ LEAGUE_MAP = {
     "epl": ("soccer", "eng.1"),
 }
 
+# ESPN team IDs are only unique within a sport/league. Namespace them so
+# MLB #14 (Blue Jays) and NBA #14 (e.g. Raptors/etc.) do not collide as PKs.
+LEAGUE_ID_OFFSET = {
+    "nfl": 1_000_000,
+    "nba": 2_000_000,
+    "mlb": 3_000_000,
+    "nhl": 4_000_000,
+    "epl": 5_000_000,
+}
+
+
+def namespaced_team_id(league: str, espn_team_id: int) -> int:
+    """Return a stable PK for an ESPN team that is unique across leagues."""
+    try:
+        offset = LEAGUE_ID_OFFSET[league.lower()]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported league: {league}") from exc
+    return offset + espn_team_id
+
 
 async def fetch_scoreboard(league: str, date: str | None = None) -> dict[str, Any]:
     sport, espn_league = LEAGUE_MAP[league.lower()]
@@ -34,7 +53,8 @@ async def fetch_scoreboard(league: str, date: str | None = None) -> dict[str, An
 
 
 async def sync_games(league: str, session: AsyncSession, date: str | None = None) -> None:
-    data = await fetch_scoreboard(league, date)
+    league_key = league.lower()
+    data = await fetch_scoreboard(league_key, date)
 
     teams_to_upsert = []
     games_to_upsert = []
@@ -55,19 +75,21 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
 
         home_team = home_competitor["team"]
         away_team = away_competitor["team"]
+        home_team_id = namespaced_team_id(league_key, int(home_team["id"]))
+        away_team_id = namespaced_team_id(league_key, int(away_team["id"]))
 
         teams_to_upsert.append(
             {
-                "id": int(home_team["id"]),
-                "league": league,
+                "id": home_team_id,
+                "league": league_key,
                 "name": home_team.get("name", ""),
                 "abbreviation": home_team.get("abbreviation", ""),
             }
         )
         teams_to_upsert.append(
             {
-                "id": int(away_team["id"]),
-                "league": league,
+                "id": away_team_id,
+                "league": league_key,
                 "name": away_team.get("name", ""),
                 "abbreviation": away_team.get("abbreviation", ""),
             }
@@ -79,10 +101,10 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
         games_to_upsert.append(
             {
                 "id": game_id,
-                "league": league,
+                "league": league_key,
                 "date": game_date,
-                "home_team_id": int(home_team["id"]),
-                "away_team_id": int(away_team["id"]),
+                "home_team_id": home_team_id,
+                "away_team_id": away_team_id,
                 "home_score": home_score,
                 "away_score": away_score,
                 "status": status_name,
@@ -97,6 +119,7 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
         team_stmt = team_stmt.on_conflict_do_update(
             index_elements=["id"],
             set_={
+                "league": team_stmt.excluded.league,
                 "name": team_stmt.excluded.name,
                 "abbreviation": team_stmt.excluded.abbreviation,
             },
@@ -108,15 +131,18 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
         game_stmt = game_stmt.on_conflict_do_update(
             index_elements=["id"],
             set_={
+                "league": game_stmt.excluded.league,
                 "status": game_stmt.excluded.status,
                 "home_score": game_stmt.excluded.home_score,
                 "away_score": game_stmt.excluded.away_score,
                 "date": game_stmt.excluded.date,
+                "home_team_id": game_stmt.excluded.home_team_id,
+                "away_team_id": game_stmt.excluded.away_team_id,
             },
         )
         await session.execute(game_stmt)
 
-    fetch_run = FetchRun(timestamp=datetime.now(UTC), league=league, status="success")
+    fetch_run = FetchRun(timestamp=datetime.now(UTC), league=league_key, status="success")
     session.add(fetch_run)
 
     await session.commit()
@@ -124,4 +150,4 @@ async def sync_games(league: str, session: AsyncSession, date: str | None = None
     # Run the Elo and Prediction pipeline
     from engine.process import run_elo_pipeline
 
-    await run_elo_pipeline(session, league)
+    await run_elo_pipeline(session, league_key)
