@@ -1,10 +1,10 @@
 import asyncio
 import logging
 import os
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 
-from alembic import command
-from alembic.config import Config
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore # 3rd party library lacks stubs
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def _run_migrations() -> None:
-    """Run alembic upgrade head synchronously (called from a thread)."""
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
+    """Run alembic in a subprocess to avoid nested asyncio.run / event-loop deadlocks."""
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        check=True,
+    )
 
 
 async def scheduled_fetch_games():
@@ -41,15 +43,15 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(_run_migrations)
     logger.info("Database migrations complete.")
 
-    # On first boot in production, fetch real data from ESPN
-    if os.getenv("RAILWAY_ENVIRONMENT"):
-        logger.info("Production environment detected — triggering initial data sync...")
-        await scheduled_fetch_games()
-        logger.info("Initial data sync complete.")
-
     scheduler = AsyncIOScheduler()
     scheduler.add_job(scheduled_fetch_games, "cron", hour=8)
     scheduler.start()
+
+    # Kick off ESPN sync in the background so /health can pass during boot
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        logger.info("Production environment detected — scheduling initial data sync...")
+        asyncio.create_task(scheduled_fetch_games())
+
     yield
     scheduler.shutdown()
 
