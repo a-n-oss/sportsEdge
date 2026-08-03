@@ -1,101 +1,134 @@
-import { getGames } from "@/lib/api"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { getGames, getStandings } from "@/lib/api"
+import { FeaturedMatchup } from "@/components/FeaturedMatchup"
+import { UpNextRail } from "@/components/UpNextRail"
+import { GameRow } from "@/components/GameRow"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { pickFeaturedGame, sortUpcoming, sortCompleted } from "@/lib/games"
+import { TeamMonogram } from "@/components/TeamMonogram"
+import { formatProb } from "@/lib/format"
 import { format, parseISO } from "date-fns"
+import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
 
-export const dynamic = 'force-dynamic' // Ensure we fetch latest games
+export const dynamic = "force-dynamic"
 
-export default async function Dashboard() {
-  const games = await getGames()
+interface DashboardProps {
+  searchParams: Promise<{ league?: string }>
+}
 
-  // Sort games by date and take the first 50 upcoming ones
-  const upcomingGames = games
-    .filter(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0)))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 50)
+export default async function Dashboard({ searchParams }: DashboardProps) {
+  const params = await searchParams
+  const league = params.league?.toLowerCase()
+
+  const games = await getGames({
+    league,
+    limit: 100,
+  }).catch(() => [])
+
+  const upcoming = sortUpcoming(games)
+  const featured = pickFeaturedGame(upcoming)
+  const upNext = upcoming.filter((g) => g.id !== featured?.id).slice(0, 6)
+  const rest = upcoming.filter((g) => g.id !== featured?.id).slice(6, 20)
+  const recentResults = sortCompleted(games).slice(0, 5)
+
+  let homeElo: number | null = null
+  let awayElo: number | null = null
+  if (featured) {
+    try {
+      const standings = await getStandings(featured.league)
+      homeElo = standings.find((s) => s.team_id === featured.home_team_id)?.elo_rating ?? null
+      awayElo = standings.find((s) => s.team_id === featured.away_team_id)?.elo_rating ?? null
+    } catch {
+      // standings optional for featured panel
+    }
+  }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent mb-4">
-          SportsEdge Predictions
-        </h1>
-        <p className="text-xl text-muted-foreground">
-          Algorithmic sports analytics and predictive modeling for upcoming matchups.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Broadcast Board"
+        title="SportsEdge Predictions"
+        description="Elo-powered win probabilities for tonight's slate. Abbreviations and custom monograms only — not affiliated with any league."
+      />
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {upcomingGames.map(game => {
-          const homeTeam = game.home_team?.name || `Team ${game.home_team_id}`
-          const awayTeam = game.away_team?.name || `Team ${game.away_team_id}`
-          const homeProb = game.prediction?.home_win_prob
-          const awayProb = game.prediction?.away_win_prob
-          const drawProb = game.prediction?.draw_prob
-
-          return (
-            <Card key={game.id} className="interactive">
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{game.league}</Badge>
-                  <span className="text-xs text-muted-foreground font-medium">
-                    {format(parseISO(game.date), "MMM d, h:mm a")}
-                  </span>
-                </div>
-                <CardTitle className="text-lg mt-2 leading-tight">
-                  {awayTeam} <span className="text-muted-foreground text-sm font-normal mx-1">at</span> {homeTeam}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {game.prediction ? (
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-sm font-medium">
-                        <span>{homeTeam} (Home)</span>
-                        <span className="text-accent">{(homeProb! * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-accent" style={{ width: `${homeProb! * 100}%` }} />
-                      </div>
-                    </div>
-
-                    {drawProb !== null && drawProb !== undefined && (
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span>Draw</span>
-                          <span className="text-muted-foreground">{(drawProb * 100).toFixed(1)}%</span>
-                        </div>
-                        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-muted-foreground" style={{ width: `${drawProb * 100}%` }} />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-sm font-medium">
-                        <span>{awayTeam} (Away)</span>
-                        <span className="text-primary">{(awayProb! * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-primary" style={{ width: `${awayProb! * 100}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-6 text-center text-sm text-muted-foreground">
-                    Predictions pending...
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-      
-      {upcomingGames.length === 0 && (
-        <div className="text-center p-12 glass rounded-xl border border-dashed border-muted-foreground/30">
-          <p className="text-muted-foreground text-lg">No upcoming games found.</p>
+      {featured ? (
+        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+          <FeaturedMatchup game={featured} homeElo={homeElo} awayElo={awayElo} />
+          <UpNextRail games={upNext} />
         </div>
+      ) : (
+        <div className="panel p-12 text-center border-dashed">
+          <p className="text-muted-foreground text-lg">No upcoming games found.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Sync data or adjust the league filter.
+          </p>
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <section className="panel overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <h2 className="font-display text-sm uppercase tracking-[0.15em]">More Games</h2>
+          </div>
+          {rest.map((game) => (
+            <GameRow key={game.id} game={game} />
+          ))}
+        </section>
+      )}
+
+      {recentResults.length > 0 && (
+        <section className="panel overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+            <h2 className="font-display text-sm uppercase tracking-[0.15em]">
+              Picks vs Outcomes
+            </h2>
+            <Link
+              href="/accuracy"
+              className="text-[10px] font-display uppercase tracking-wider text-primary hover:underline"
+            >
+              Model accuracy →
+            </Link>
+          </div>
+          {recentResults.map((game) => {
+            const homeWon =
+              game.home_score != null &&
+              game.away_score != null &&
+              game.home_score > game.away_score
+            const awayWon =
+              game.home_score != null &&
+              game.away_score != null &&
+              game.away_score > game.home_score
+            const pred = game.prediction!
+            const modelFavoredHome = pred.home_win_prob >= pred.away_win_prob
+            const correct =
+              (modelFavoredHome && homeWon) || (!modelFavoredHome && awayWon)
+            const homeAbbr = game.home_team?.abbreviation ?? "HOM"
+            const awayAbbr = game.away_team?.abbreviation ?? "AWY"
+
+            return (
+              <Link
+                key={game.id}
+                href={`/games/${game.id}`}
+                className="interactive-row flex items-center gap-3 px-4 py-3 border-b border-border/60 last:border-0"
+              >
+                <TeamMonogram abbreviation={awayAbbr} size="sm" />
+                <span className="font-mono-stat text-sm">
+                  {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
+                </span>
+                <TeamMonogram abbreviation={homeAbbr} size="sm" />
+                <span className="text-[10px] text-muted-foreground font-mono-stat ml-auto">
+                  {format(parseISO(game.date), "MMM d")}
+                </span>
+                <span className="font-mono-stat text-xs text-muted-foreground">
+                  Model {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}
+                </span>
+                <Badge variant={correct ? "default" : "destructive"} className="text-[10px]">
+                  {correct ? "Hit" : "Miss"}
+                </Badge>
+              </Link>
+            )
+          })}
+        </section>
       )}
     </div>
   )

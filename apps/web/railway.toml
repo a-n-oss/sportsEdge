@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+watchPatterns = ["apps/web/**"]
+
+[deploy]
+startCommand = "pnpm start"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"

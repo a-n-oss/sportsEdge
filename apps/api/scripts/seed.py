@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 # Add the parent directory to sys.path to allow importing from the main app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from db.models import Base, Game, Prediction, RatingHistory, Team
+from db.models import Base, FetchRun, Game, Prediction, Rating, RatingHistory, Team
 
 
 async def seed():
@@ -78,16 +78,32 @@ async def seed():
         # Create Rating History
         rh1 = RatingHistory(team_id=1, game_id=101, elo_rating=1550.0, date=past_date)
         rh2 = RatingHistory(team_id=2, game_id=101, elo_rating=1480.0, date=past_date)
-        rh3 = RatingHistory(team_id=3, game_id=None, elo_rating=1600.0, date=past_date)  # No games played yet
+        rh3 = RatingHistory(team_id=3, game_id=None, elo_rating=1600.0, date=past_date)
         rh4 = RatingHistory(team_id=4, game_id=None, elo_rating=1520.0, date=past_date)
 
         session.add_all([rh1, rh2, rh3, rh4])
         await session.commit()
 
-        # Create Predictions for future games
+        # Current ratings (for standings)
+        now = datetime.now(UTC)
+        session.add_all(
+            [
+                Rating(team_id=1, elo_rating=1550.0, last_updated=now),
+                Rating(team_id=2, elo_rating=1480.0, last_updated=now),
+                Rating(team_id=3, elo_rating=1600.0, last_updated=now),
+                Rating(team_id=4, elo_rating=1520.0, last_updated=now),
+            ]
+        )
+        await session.commit()
+
+        # Predictions: completed game (for accuracy) + upcoming
+        pred_past = Prediction(game_id=101, home_win_prob=0.58, away_win_prob=0.42, draw_prob=None)
         pred1 = Prediction(game_id=102, home_win_prob=0.65, away_win_prob=0.35, draw_prob=None)
         pred2 = Prediction(game_id=103, home_win_prob=0.45, away_win_prob=0.55, draw_prob=None)
-        session.add_all([pred1, pred2])
+        session.add_all([pred_past, pred1, pred2])
+        await session.commit()
+
+        session.add(FetchRun(timestamp=now, league="nba", status="success"))
         await session.commit()
 
     await engine.dispose()
