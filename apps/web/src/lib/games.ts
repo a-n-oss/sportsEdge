@@ -10,10 +10,10 @@ export function pickFeaturedGame(games: Game[]): Game | null {
 
 /**
  * ESPN occasionally lists both orientations of the same slate (A@B and B@A).
- * Keep the first occurrence after sort so the board does not look cross-labeled.
+ * Drop only the reversed mirror; keep same-orientation rematches (e.g. doubleheaders).
  */
 export function dedupeMirrorMatchups(games: Game[]): Game[] {
-  const seen = new Set<string>()
+  const keptByPair = new Map<string, Array<{ home: number; away: number }>>()
   const out: Game[] = []
 
   for (const game of games) {
@@ -21,8 +21,14 @@ export function dedupeMirrorMatchups(games: Game[]): Game[] {
     const high = Math.max(game.home_team_id, game.away_team_id)
     const day = game.date.slice(0, 10)
     const key = `${game.league}:${day}:${low}:${high}`
-    if (seen.has(key)) continue
-    seen.add(key)
+    const kept = keptByPair.get(key) ?? []
+    const isMirror = kept.some(
+      (prior) =>
+        prior.home === game.away_team_id && prior.away === game.home_team_id
+    )
+    if (isMirror) continue
+    kept.push({ home: game.home_team_id, away: game.away_team_id })
+    keptByPair.set(key, kept)
     out.push(game)
   }
 

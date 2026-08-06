@@ -35,4 +35,13 @@ describe("dedupeMirrorMatchups", () => {
 
     expect(dedupeMirrorMatchups(games)).toHaveLength(2)
   })
+
+  it("keeps same-orientation doubleheaders", () => {
+    const games = [
+      game({ id: 1, home_team_id: 21, away_team_id: 10, date: "2026-09-19T17:00:00Z" }),
+      game({ id: 2, home_team_id: 21, away_team_id: 10, date: "2026-09-19T23:00:00Z" }),
+    ]
+
+    expect(dedupeMirrorMatchups(games)).toHaveLength(2)
+  })
 })
