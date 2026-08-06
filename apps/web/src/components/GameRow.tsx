@@ -34,12 +34,22 @@ export function GameRow({ game, className }: GameRowProps) {
           {format(parseISO(game.date), "h:mm a")}
         </p>
       </div>
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <TeamMonogram abbreviation={awayAbbr} size="sm" />
-        <span className="font-display text-sm uppercase tracking-wide truncate">{awayAbbr}</span>
-        <span className="text-muted-foreground text-xs">@</span>
+        <div className="min-w-0">
+          <p className="truncate font-display text-sm uppercase tracking-wide">{awayAbbr}</p>
+          <p className="truncate text-[10px] text-muted-foreground">
+            {away?.name ?? "Away"}
+          </p>
+        </div>
+        <span className="shrink-0 text-xs text-muted-foreground">@</span>
         <TeamMonogram abbreviation={homeAbbr} size="sm" />
-        <span className="font-display text-sm uppercase tracking-wide truncate">{homeAbbr}</span>
+        <div className="min-w-0">
+          <p className="truncate font-display text-sm uppercase tracking-wide">{homeAbbr}</p>
+          <p className="truncate text-[10px] text-muted-foreground">
+            {home?.name ?? "Home"}
+          </p>
+        </div>
       </div>
       <div className="w-28 shrink-0 hidden sm:block">
         {pred ? (

@@ -79,6 +79,8 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
                     <p className="font-display uppercase tracking-wide truncate">{team.name}</p>
                     <p className="font-mono-stat text-xs text-muted-foreground">
                       {team.abbreviation}
+                      <span className="mx-1.5 text-border">·</span>
+                      <span className="uppercase tracking-wider">{team.league}</span>
                     </p>
                   </div>
                   {elo != null && (
