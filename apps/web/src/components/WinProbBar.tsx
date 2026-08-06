@@ -42,7 +42,7 @@ export function WinProbBar({
             </span>
           </div>
           {draw > 0 && (
-            <span className="order-last w-full text-center font-mono-stat text-xs text-muted-foreground sm:order-none sm:w-auto">
+            <span className="order-last w-full text-center font-mono-stat text-xs text-draw sm:order-none sm:w-auto">
               Draw {formatProb(draw)}
             </span>
           )}
@@ -61,7 +61,7 @@ export function WinProbBar({
         <div className="flex items-center justify-between gap-2 font-mono-stat text-[11px] tabular-nums text-muted-foreground">
           <span className="text-primary">{formatProb(homeProb)}</span>
           {draw > 0 ? (
-            <span className="truncate">Draw {formatProb(draw)}</span>
+            <span className="truncate text-draw">Draw {formatProb(draw)}</span>
           ) : (
             <span aria-hidden />
           )}
@@ -83,7 +83,7 @@ export function WinProbBar({
         />
         {drawPct > 0 && (
           <div
-            className={cn("h-full bg-muted-foreground/50", animate && "animate-prob-fill")}
+            className={cn("h-full bg-draw", animate && "animate-prob-fill")}
             style={{ width: `${drawPct}%` }}
           />
         )}

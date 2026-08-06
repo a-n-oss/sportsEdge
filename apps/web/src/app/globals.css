@@ -23,6 +23,8 @@
   --radius: 0.5rem;
   --surface: #111114;
   --rail: #161619;
+  /* WinProbBar draw segment — cool steel, distinct from amber home + gray away */
+  --draw: #6b8499;
 }
 
 @theme inline {
@@ -47,6 +49,7 @@
   --color-ring: var(--ring);
   --color-surface: var(--surface);
   --color-rail: var(--rail);
+  --color-draw: var(--draw);
   --font-display: var(--font-oswald);
   --font-mono: var(--font-jetbrains-mono);
   --radius-lg: var(--radius);
