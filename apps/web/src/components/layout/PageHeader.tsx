@@ -16,11 +16,11 @@ export function PageHeader({ eyebrow, title, description, className, children }:
         {eyebrow && (
           <p className="text-xs font-display uppercase tracking-[0.2em] text-primary mb-2">{eyebrow}</p>
         )}
-        <h1 className="font-display text-3xl md:text-4xl lg:text-5xl uppercase tracking-tight text-foreground">
+        <h1 className="font-display text-2xl uppercase tracking-tight text-foreground sm:text-3xl md:text-4xl lg:text-5xl">
           {title}
         </h1>
         {description && (
-          <p className="mt-2 text-muted-foreground max-w-2xl">{description}</p>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">{description}</p>
         )}
       </div>
       {children}

@@ -40,27 +40,31 @@ export default async function TeamDetail({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <TeamMonogram abbreviation={team.abbreviation} size="lg" />
-          <div>
-            <div className="flex items-center gap-3 mb-2">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+          <TeamMonogram
+            abbreviation={team.abbreviation}
+            size="lg"
+            className="h-16 w-16 text-lg sm:h-20 sm:w-20 sm:text-xl"
+          />
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2 sm:gap-3">
               <Badge variant="outline" className="uppercase tracking-widest">
                 {team.league}
               </Badge>
-              <span className="text-muted-foreground font-mono-stat">{team.abbreviation}</span>
+              <span className="font-mono-stat text-muted-foreground">{team.abbreviation}</span>
             </div>
-            <h1 className="font-display text-3xl md:text-5xl uppercase tracking-tight">
+            <h1 className="font-display text-2xl uppercase tracking-tight sm:text-3xl md:text-5xl">
               {team.name}
             </h1>
           </div>
         </div>
         {latestRating !== null && (
-          <div className="panel px-6 py-4 text-center">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+          <div className="panel shrink-0 px-5 py-3 text-center sm:px-6 sm:py-4">
+            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
               Current Elo
             </div>
-            <div className="font-mono-stat text-4xl text-primary">
+            <div className="font-mono-stat text-3xl tabular-nums text-primary sm:text-4xl">
               {formatElo(latestRating)}
             </div>
           </div>

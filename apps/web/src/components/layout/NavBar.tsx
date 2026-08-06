@@ -20,20 +20,23 @@ interface NavBarProps {
 export function NavBar({ leagues, lastRefresh }: NavBarProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="container mx-auto px-4">
-        <div className="flex h-14 items-center justify-between gap-4">
-          <div className="flex items-center gap-6 min-w-0">
-            <Link href="/" className="shrink-0 font-display text-xl uppercase tracking-tight">
+      <div className="container mx-auto max-w-full px-3 sm:px-4">
+        <div className="flex h-14 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-4 md:gap-6">
+            <Link
+              href="/"
+              className="shrink-0 font-display text-lg uppercase tracking-tight sm:text-xl"
+            >
               <span className="text-foreground">Sports</span>
               <span className="text-primary">Edge</span>
             </Link>
-            <nav className="hidden md:flex items-center gap-4 text-sm">
+            <nav className="hidden items-center gap-1 md:flex">
               {NAV_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wide text-xs font-display"
+                    "px-2 py-2 font-display text-xs uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
                   )}
                 >
                   {link.label}
@@ -41,21 +44,21 @@ export function NavBar({ leagues, lastRefresh }: NavBarProps) {
               ))}
             </nav>
           </div>
-          <p className="text-[11px] text-muted-foreground font-mono-stat shrink-0">
+          <p className="shrink-0 truncate font-mono-stat text-[10px] text-muted-foreground sm:text-[11px]">
             {formatUpdatedAgo(lastRefresh)}
           </p>
         </div>
-        <div className="flex h-10 items-center border-t border-border/60 -mx-4 px-4">
-          <Suspense fallback={<div className="h-5 w-48 skeleton rounded" />}>
+        <div className="-mx-3 flex h-10 items-center overflow-hidden border-t border-border/60 px-3 sm:-mx-4 sm:px-4">
+          <Suspense fallback={<div className="skeleton h-5 w-48 rounded" />}>
             <LeagueTabs leagues={leagues} />
           </Suspense>
         </div>
-        <nav className="flex md:hidden items-center gap-3 pb-2 overflow-x-auto text-xs font-display uppercase tracking-wide">
+        <nav className="scrollbar-none -mx-3 flex items-center gap-1 overflow-x-auto px-3 pb-2 font-display text-xs uppercase tracking-wide md:hidden sm:-mx-4 sm:px-4">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-muted-foreground hover:text-foreground whitespace-nowrap"
+              className="inline-flex min-h-10 shrink-0 items-center px-2.5 text-muted-foreground hover:text-foreground"
             >
               {link.label}
             </Link>

@@ -51,7 +51,9 @@ export default async function RootLayout({
             leagues={leagues.length > 0 ? leagues : ["nfl", "nba", "mlb", "nhl", "epl"]}
             lastRefresh={lastRefresh?.timestamp ?? null}
           />
-          <main className="flex-1 container mx-auto px-4 py-8">{children}</main>
+          <main className="container mx-auto max-w-full flex-1 px-3 py-6 sm:px-4 sm:py-8">
+            {children}
+          </main>
           <Footer />
         </div>
       </body>

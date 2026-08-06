@@ -93,38 +93,44 @@ export default async function MatchupPage({
         </Badge>
       </div>
 
-      <section className="panel p-6 md:p-10 animate-featured-in">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 md:gap-10 mb-8">
+      <section className="panel animate-featured-in overflow-hidden p-4 sm:p-6 md:p-10">
+        <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:mb-8 sm:gap-4 md:gap-10">
           <Link
             href={away ? `/teams/${away.id}` : "#"}
-            className="flex flex-col items-center gap-3 text-center group"
+            className="group flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3"
           >
-            <TeamMonogram abbreviation={awayAbbr} size="lg" />
-            <div>
-              <p className="font-display text-2xl uppercase tracking-wide group-hover:text-primary transition-colors">
+            <TeamMonogram
+              abbreviation={awayAbbr}
+              size="lg"
+              className="h-14 w-14 text-base sm:h-20 sm:w-20 sm:text-xl"
+            />
+            <div className="min-w-0 w-full">
+              <p className="font-display text-xl uppercase tracking-wide transition-colors group-hover:text-primary sm:text-2xl">
                 {awayAbbr}
               </p>
-              <p className="text-sm text-muted-foreground">{away?.name}</p>
+              <p className="truncate text-xs text-muted-foreground sm:text-sm">{away?.name}</p>
               {awayElo != null && (
-                <p className="mt-2 font-mono-stat text-lg">{formatElo(awayElo)}</p>
+                <p className="mt-2 font-mono-stat text-base tabular-nums sm:text-lg">
+                  {formatElo(awayElo)}
+                </p>
               )}
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</p>
             </div>
           </Link>
 
-          <div className="text-center px-2">
-            <p className="font-display text-xl text-muted-foreground">VS</p>
-            <p className="font-mono-stat text-xs text-muted-foreground mt-2">
+          <div className="shrink-0 px-1 text-center sm:px-2">
+            <p className="font-display text-lg text-muted-foreground sm:text-xl">VS</p>
+            <p className="mt-2 font-mono-stat text-[10px] text-muted-foreground sm:text-xs">
               {format(parseISO(game.date), "MMM d, yyyy")}
             </p>
-            <p className="font-mono-stat text-xs text-muted-foreground">
+            <p className="font-mono-stat text-[10px] text-muted-foreground sm:text-xs">
               {format(parseISO(game.date), "h:mm a")}
             </p>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-2">
+            <p className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
               {game.status}
             </p>
             {game.home_score != null && game.away_score != null && (
-              <p className="font-mono-stat text-2xl mt-3 text-primary">
+              <p className="mt-3 font-mono-stat text-xl tabular-nums text-primary sm:text-2xl">
                 {game.away_score} – {game.home_score}
               </p>
             )}
@@ -132,16 +138,22 @@ export default async function MatchupPage({
 
           <Link
             href={home ? `/teams/${home.id}` : "#"}
-            className="flex flex-col items-center gap-3 text-center group"
+            className="group flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3"
           >
-            <TeamMonogram abbreviation={homeAbbr} size="lg" />
-            <div>
-              <p className="font-display text-2xl uppercase tracking-wide text-primary group-hover:underline">
+            <TeamMonogram
+              abbreviation={homeAbbr}
+              size="lg"
+              className="h-14 w-14 text-base sm:h-20 sm:w-20 sm:text-xl"
+            />
+            <div className="min-w-0 w-full">
+              <p className="font-display text-xl uppercase tracking-wide text-primary group-hover:underline sm:text-2xl">
                 {homeAbbr}
               </p>
-              <p className="text-sm text-muted-foreground">{home?.name}</p>
+              <p className="truncate text-xs text-muted-foreground sm:text-sm">{home?.name}</p>
               {homeElo != null && (
-                <p className="mt-2 font-mono-stat text-lg text-primary">{formatElo(homeElo)}</p>
+                <p className="mt-2 font-mono-stat text-base tabular-nums text-primary sm:text-lg">
+                  {formatElo(homeElo)}
+                </p>
               )}
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</p>
             </div>

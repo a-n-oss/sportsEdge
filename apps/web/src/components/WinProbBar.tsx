@@ -27,34 +27,50 @@ export function WinProbBar({
   const awayPct = awayProb * 100
   const drawPct = draw * 100
   const barH = size === "lg" ? "h-2.5" : "h-1.5"
+  const isCompact = size === "sm"
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <div className="flex justify-between items-baseline gap-2">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className={cn("font-mono-stat font-semibold text-primary", size === "lg" ? "text-2xl" : "text-sm")}>
-            {formatProb(homeProb)}
-          </span>
-          {size === "lg" && (
-            <span className="text-xs text-muted-foreground uppercase tracking-wider truncate">{homeLabel}</span>
+    <div className={cn("min-w-0 space-y-2", className)}>
+      {!isCompact && (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="font-mono-stat text-xl font-semibold tabular-nums text-primary sm:text-2xl">
+              {formatProb(homeProb)}
+            </span>
+            <span className="truncate text-xs uppercase tracking-wider text-muted-foreground">
+              {homeLabel}
+            </span>
+          </div>
+          {draw > 0 && (
+            <span className="order-last w-full text-center font-mono-stat text-xs text-muted-foreground sm:order-none sm:w-auto">
+              Draw {formatProb(draw)}
+            </span>
           )}
+          <div className="flex min-w-0 items-baseline justify-end gap-2">
+            <span className="truncate text-xs uppercase tracking-wider text-muted-foreground">
+              {awayLabel}
+            </span>
+            <span className="font-mono-stat text-xl font-semibold tabular-nums text-foreground sm:text-2xl">
+              {formatProb(awayProb)}
+            </span>
+          </div>
         </div>
-        {draw > 0 && (
-          <span className="font-mono-stat text-xs text-muted-foreground">
-            Draw {formatProb(draw)}
-          </span>
-        )}
-        <div className="flex items-baseline gap-2 min-w-0 justify-end">
-          {size === "lg" && (
-            <span className="text-xs text-muted-foreground uppercase tracking-wider truncate">{awayLabel}</span>
+      )}
+
+      {isCompact && (
+        <div className="flex items-center justify-between gap-2 font-mono-stat text-[11px] tabular-nums text-muted-foreground">
+          <span className="text-primary">{formatProb(homeProb)}</span>
+          {draw > 0 ? (
+            <span className="truncate">Draw {formatProb(draw)}</span>
+          ) : (
+            <span aria-hidden />
           )}
-          <span className={cn("font-mono-stat font-semibold text-foreground", size === "lg" ? "text-2xl" : "text-sm")}>
-            {formatProb(awayProb)}
-          </span>
+          <span>{formatProb(awayProb)}</span>
         </div>
-      </div>
+      )}
+
       <div
-        className={cn("w-full rounded-full overflow-hidden flex bg-secondary", barH)}
+        className={cn("flex w-full overflow-hidden rounded-full bg-secondary", barH)}
         role="meter"
         aria-label={`Win probability ${homeLabel} ${formatProb(homeProb)}, ${awayLabel} ${formatProb(awayProb)}`}
         aria-valuemin={0}

@@ -72,11 +72,11 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
                 <Link
                   key={team.id}
                   href={`/teams/${team.id}`}
-                  className="interactive-row flex items-center gap-4 px-4 py-3"
+                  className="interactive-row flex min-w-0 items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4"
                 >
                   <TeamMonogram abbreviation={team.abbreviation} size="md" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-display uppercase tracking-wide truncate">{team.name}</p>
+                    <p className="truncate font-display uppercase tracking-wide">{team.name}</p>
                     <p className="font-mono-stat text-xs text-muted-foreground">
                       {team.abbreviation}
                       <span className="mx-1.5 text-border">·</span>
@@ -84,8 +84,10 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
                     </p>
                   </div>
                   {elo != null && (
-                    <div className="text-right">
-                      <p className="font-mono-stat text-lg text-primary">{formatElo(elo)}</p>
+                    <div className="shrink-0 text-right">
+                      <p className="font-mono-stat text-base tabular-nums text-primary sm:text-lg">
+                        {formatElo(elo)}
+                      </p>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                         Elo
                       </p>

@@ -20,14 +20,14 @@ export function LeagueTabs({ leagues }: LeagueTabsProps) {
       : "/"
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+    <div className="scrollbar-none flex w-full items-center gap-1 overflow-x-auto">
       <Link
         href={basePath}
         className={cn(
-          "px-2.5 py-1 text-xs font-display uppercase tracking-wider transition-colors whitespace-nowrap",
+          "inline-flex min-h-9 shrink-0 items-center whitespace-nowrap px-2.5 py-1 font-display text-xs uppercase tracking-wider transition-colors",
           !activeLeague
-            ? "text-primary border-b-2 border-primary"
-            : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+            ? "border-b-2 border-primary text-primary"
+            : "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
         )}
       >
         All
@@ -41,10 +41,10 @@ export function LeagueTabs({ leagues }: LeagueTabsProps) {
             key={league}
             href={href}
             className={cn(
-              "px-2.5 py-1 text-xs font-display uppercase tracking-wider transition-colors whitespace-nowrap",
+              "inline-flex min-h-9 shrink-0 items-center whitespace-nowrap px-2.5 py-1 font-display text-xs uppercase tracking-wider transition-colors",
               isActive
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+                ? "border-b-2 border-primary text-primary"
+                : "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             {slug}

@@ -26,12 +26,11 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
       />
 
       <section className="panel overflow-hidden">
-        <div className="grid grid-cols-[3rem_1fr_6rem_5rem] md:grid-cols-[3rem_1fr_8rem_6rem] gap-2 px-4 py-3 border-b border-border text-[10px] font-display uppercase tracking-wider text-muted-foreground">
+        <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] gap-2 border-b border-border px-3 py-3 font-display text-[10px] uppercase tracking-wider text-muted-foreground sm:px-4 md:grid-cols-[3rem_minmax(0,1fr)_6rem_5rem]">
           <span>#</span>
           <span>Team</span>
           <span className="text-right">Elo</span>
-          <span className="text-right hidden md:block">Trend</span>
-          <span className="text-right md:hidden"> </span>
+          <span className="hidden text-right md:block">Trend</span>
         </div>
         {standings.length === 0 ? (
           <p className="p-10 text-center text-muted-foreground">
@@ -42,22 +41,22 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
             <Link
               key={row.team_id}
               href={`/teams/${row.team_id}`}
-              className="interactive-row grid grid-cols-[3rem_1fr_6rem_5rem] md:grid-cols-[3rem_1fr_8rem_6rem] gap-2 items-center px-4 py-3 border-b border-border/50 last:border-0"
+              className="interactive-row grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-2 border-b border-border/50 px-3 py-3 last:border-0 sm:px-4 md:grid-cols-[3rem_minmax(0,1fr)_6rem_5rem]"
             >
               <span className="font-mono-stat text-sm text-muted-foreground">{row.rank}</span>
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                 <TeamMonogram abbreviation={row.abbreviation} size="sm" />
                 <div className="min-w-0">
-                  <p className="font-display text-sm uppercase tracking-wide truncate">
+                  <p className="truncate font-display text-sm uppercase tracking-wide">
                     {row.abbreviation}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">{row.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{row.name}</p>
                 </div>
               </div>
-              <span className="font-mono-stat text-sm text-primary text-right">
+              <span className="text-right font-mono-stat text-sm tabular-nums text-primary">
                 {formatElo(row.elo_rating)}
               </span>
-              <span className="font-mono-stat text-xs text-muted-foreground text-right">
+              <span className="hidden text-right font-mono-stat text-xs text-muted-foreground md:block">
                 {row.trend == null
                   ? "—"
                   : row.trend > 0

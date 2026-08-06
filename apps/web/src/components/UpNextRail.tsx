@@ -8,12 +8,14 @@ interface UpNextRailProps {
 
 export function UpNextRail({ games }: UpNextRailProps) {
   return (
-    <aside className="rail-panel flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h2 className="font-display text-sm uppercase tracking-[0.15em] text-foreground">Up Next</h2>
+    <aside className="rail-panel flex min-w-0 flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
+        <h2 className="font-display text-sm uppercase tracking-[0.15em] text-foreground">
+          Up Next
+        </h2>
         <Link
           href="/rankings"
-          className="text-[10px] font-display uppercase tracking-wider text-primary hover:underline"
+          className="shrink-0 font-display text-[10px] uppercase tracking-wider text-primary hover:underline"
         >
           Rankings
         </Link>

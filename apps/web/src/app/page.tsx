@@ -52,7 +52,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       />
 
       {featured ? (
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]">
           <FeaturedMatchup game={featured} homeElo={homeElo} awayElo={awayElo} />
           <UpNextRail games={upNext} />
         </div>
@@ -109,22 +109,26 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
               <Link
                 key={game.id}
                 href={`/games/${game.id}`}
-                className="interactive-row flex items-center gap-3 px-4 py-3 border-b border-border/60 last:border-0"
+                className="interactive-row flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-3 py-3 last:border-0 sm:px-4"
               >
-                <TeamMonogram abbreviation={awayAbbr} size="sm" />
-                <span className="font-mono-stat text-sm">
-                  {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
-                </span>
-                <TeamMonogram abbreviation={homeAbbr} size="sm" />
-                <span className="text-[10px] text-muted-foreground font-mono-stat ml-auto">
-                  {format(parseISO(game.date), "MMM d")}
-                </span>
-                <span className="font-mono-stat text-xs text-muted-foreground">
-                  Model {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}
-                </span>
-                <Badge variant={correct ? "default" : "destructive"} className="text-[10px]">
-                  {correct ? "Hit" : "Miss"}
-                </Badge>
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <TeamMonogram abbreviation={awayAbbr} size="sm" />
+                  <span className="font-mono-stat text-sm tabular-nums">
+                    {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
+                  </span>
+                  <TeamMonogram abbreviation={homeAbbr} size="sm" />
+                </div>
+                <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+                  <span className="font-mono-stat text-[10px] text-muted-foreground">
+                    {format(parseISO(game.date), "MMM d")}
+                  </span>
+                  <span className="font-mono-stat text-xs text-muted-foreground">
+                    Model {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}
+                  </span>
+                  <Badge variant={correct ? "default" : "destructive"} className="ml-auto text-[10px] sm:ml-0">
+                    {correct ? "Hit" : "Miss"}
+                  </Badge>
+                </div>
               </Link>
             )
           })}

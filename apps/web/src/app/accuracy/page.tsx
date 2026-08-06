@@ -45,7 +45,7 @@ export default async function AccuracyPage() {
             <h2 className="font-display text-sm uppercase tracking-[0.15em] mb-1">Brier Score</h2>
             <p className="text-xs text-muted-foreground mb-8">Mean squared error of predictions</p>
             <div className="flex flex-col items-center justify-center py-6">
-              <div className="font-mono-stat text-7xl text-primary mb-4">
+              <div className="mb-4 font-mono-stat text-5xl tabular-nums text-primary sm:text-7xl">
                 {accuracy.brier_score.toFixed(3)}
               </div>
               <Badge variant={accuracy.brier_score < 0.2 ? "default" : "secondary"}>
@@ -124,23 +124,27 @@ export default async function AccuracyPage() {
               <Link
                 key={game.id}
                 href={`/games/${game.id}`}
-                className="interactive-row flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border/60 last:border-0"
+                className="interactive-row flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-3 py-3 last:border-0 sm:px-4"
               >
-                <span className="font-mono-stat text-[10px] text-muted-foreground w-14">
+                <span className="w-12 shrink-0 font-mono-stat text-[10px] text-muted-foreground sm:w-14">
                   {format(parseISO(game.date), "MMM d")}
                 </span>
-                <TeamMonogram abbreviation={awayAbbr} size="sm" />
-                <span className="font-mono-stat text-sm">
-                  {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
-                </span>
-                <TeamMonogram abbreviation={homeAbbr} size="sm" />
-                <span className="font-mono-stat text-xs text-muted-foreground ml-auto">
-                  Pred {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}{" "}
-                  {modelFavoredHome ? homeAbbr : awayAbbr}
-                </span>
-                <Badge variant={correct ? "default" : "destructive"} className="text-[10px]">
-                  {correct ? "Hit" : "Miss"}
-                </Badge>
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <TeamMonogram abbreviation={awayAbbr} size="sm" />
+                  <span className="font-mono-stat text-sm tabular-nums">
+                    {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
+                  </span>
+                  <TeamMonogram abbreviation={homeAbbr} size="sm" />
+                </div>
+                <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+                  <span className="font-mono-stat text-xs text-muted-foreground">
+                    Pred {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}{" "}
+                    {modelFavoredHome ? homeAbbr : awayAbbr}
+                  </span>
+                  <Badge variant={correct ? "default" : "destructive"} className="ml-auto text-[10px] sm:ml-0">
+                    {correct ? "Hit" : "Miss"}
+                  </Badge>
+                </div>
               </Link>
             )
           })}
