@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { RatingChart } from "@/components/RatingChart"
 import { WinProbBar } from "@/components/WinProbBar"
 import { formatElo } from "@/lib/format"
+import { isCompletedStatus } from "@/lib/games"
 import { format, parseISO } from "date-fns"
 import Link from "next/link"
 
@@ -26,7 +27,7 @@ export default async function TeamDetail({ params }: { params: Promise<{ id: str
   const now = new Date()
 
   const upcomingGames = teamGames
-    .filter((g) => new Date(g.date) >= now && g.status !== "completed")
+    .filter((g) => new Date(g.date) >= now && !isCompletedStatus(g.status))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(0, 5)
 

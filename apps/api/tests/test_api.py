@@ -114,6 +114,55 @@ async def test_games_filter_and_game_detail(async_client: AsyncClient, get_db_se
 
 
 @pytest.mark.asyncio
+async def test_games_status_accepts_comma_separated_completed(async_client: AsyncClient, get_db_session: AsyncSession):
+    """History/accuracy UIs need both ESPN STATUS_FINAL and seed 'completed'."""
+    now = datetime.now(UTC)
+    home = Team(id=10, league="nba", name="Home", abbreviation="HOM")
+    away = Team(id=11, league="nba", name="Away", abbreviation="AWY")
+    get_db_session.add_all([home, away])
+    await get_db_session.commit()
+
+    get_db_session.add_all(
+        [
+            Game(
+                id=201,
+                league="nba",
+                date=now - timedelta(days=1),
+                status="STATUS_FINAL",
+                home_team_id=10,
+                away_team_id=11,
+                home_score=100,
+                away_score=90,
+            ),
+            Game(
+                id=202,
+                league="nba",
+                date=now - timedelta(days=2),
+                status="completed",
+                home_team_id=10,
+                away_team_id=11,
+                home_score=98,
+                away_score=97,
+            ),
+            Game(
+                id=203,
+                league="nba",
+                date=now + timedelta(days=1),
+                status="STATUS_SCHEDULED",
+                home_team_id=10,
+                away_team_id=11,
+            ),
+        ]
+    )
+    await get_db_session.commit()
+
+    response = await async_client.get("/api/v1/games?status=STATUS_FINAL,completed")
+    assert response.status_code == 200
+    ids = {g["id"] for g in response.json()}
+    assert ids == {201, 202}
+
+
+@pytest.mark.asyncio
 async def test_standings_and_accuracy(async_client: AsyncClient, get_db_session: AsyncSession):
     now = datetime.now(UTC)
     home = Team(id=1, league="nba", name="Los Angeles Lakers", abbreviation="LAL")
@@ -159,6 +208,13 @@ async def test_standings_and_accuracy(async_client: AsyncClient, get_db_session:
     acc = accuracy.json()
     assert acc["sample_size"] == 1
     assert 0 <= acc["brier_score"] <= 1
+
+    # ESPN scoreboards use STATUS_FINAL; accuracy must count those too.
+    past.status = "STATUS_FINAL"
+    await get_db_session.commit()
+    accuracy_espn = await async_client.get("/api/v1/accuracy")
+    assert accuracy_espn.status_code == 200
+    assert accuracy_espn.json()["sample_size"] == 1
 
     refresh = await async_client.get("/api/v1/meta/last-refresh")
     assert refresh.status_code == 200

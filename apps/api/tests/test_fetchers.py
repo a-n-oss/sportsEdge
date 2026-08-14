@@ -6,7 +6,7 @@ from httpx import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import FetchRun, Game, Team
+from db.models import FetchRun, Game, Prediction, Team
 from fetchers.espn import LEAGUE_MAP, fetch_scoreboard, namespaced_team_id, sync_games
 
 
@@ -108,6 +108,36 @@ async def test_sync_games_upsert(espn_mock_data, get_db_session: AsyncSession):
         assert games[0].status == "STATUS_FINAL"
         assert games[0].home_score == 110
         assert games[0].away_score == 105
+
+
+@pytest.mark.asyncio
+async def test_sync_scheduled_to_final_retains_prediction(espn_mock_data, get_db_session: AsyncSession):
+    """Pre-game predictions must survive when ESPN flips the game to STATUS_FINAL."""
+    league = "nba"
+    sport, espn_league = LEAGUE_MAP[league]
+    url = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{espn_league}/scoreboard"
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(url).mock(return_value=Response(200, json=espn_mock_data))
+        await sync_games(league, get_db_session)
+
+        pred_before = (await get_db_session.execute(select(Prediction).where(Prediction.game_id == 12345))).scalar_one()
+        home_p = pred_before.home_win_prob
+        away_p = pred_before.away_win_prob
+
+        espn_mock_data["events"][0]["status"]["type"]["name"] = "STATUS_FINAL"
+        espn_mock_data["events"][0]["competitions"][0]["competitors"][0]["score"] = "110"
+        espn_mock_data["events"][0]["competitions"][0]["competitors"][1]["score"] = "105"
+        respx_mock.get(url).mock(return_value=Response(200, json=espn_mock_data))
+        await sync_games(league, get_db_session)
+
+    pred_after = (
+        await get_db_session.execute(
+            select(Prediction).where(Prediction.game_id == 12345).execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    assert pred_after.home_win_prob == pytest.approx(home_p)
+    assert pred_after.away_win_prob == pytest.approx(away_p)
 
 
 def test_namespaced_team_id_is_league_scoped():

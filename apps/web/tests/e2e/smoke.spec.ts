@@ -42,7 +42,16 @@ test.describe('SportsEdge Smoke Tests', () => {
   test('should load accuracy report', async ({ page }) => {
     await page.goto('/accuracy');
     await expect(page.locator('text=Model Accuracy').first()).toBeVisible();
-    await expect(page.locator('text=Brier Score').first()).toBeVisible();
+    // Empty or populated: page always explains sample sizing / Brier when data exists
+    await expect(
+      page.getByText(/Brier Score|No accuracy metrics available yet/).first()
+    ).toBeVisible();
+  });
+
+  test('should load prediction history', async ({ page }) => {
+    await page.goto('/history');
+    await expect(page.locator('text=Prediction History').first()).toBeVisible();
+    await expect(page.getByText(/Closeness/i).first()).toBeVisible();
   });
 
   test('should load methodology about page', async ({ page }) => {

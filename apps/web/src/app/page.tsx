@@ -2,13 +2,10 @@ import { getGames, getStandings } from "@/lib/api"
 import { FeaturedMatchup } from "@/components/FeaturedMatchup"
 import { UpNextRail } from "@/components/UpNextRail"
 import { GameRow } from "@/components/GameRow"
+import { HistoryResultRow } from "@/components/HistoryResultRow"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { pickFeaturedGame, sortUpcoming, sortCompleted } from "@/lib/games"
-import { TeamMonogram } from "@/components/TeamMonogram"
-import { formatProb } from "@/lib/format"
-import { format, parseISO } from "date-fns"
 import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
 
 export const dynamic = "force-dynamic"
 
@@ -83,55 +80,15 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
               Picks vs Outcomes
             </h2>
             <Link
-              href="/accuracy"
+              href="/history"
               className="text-[10px] font-display uppercase tracking-wider text-primary hover:underline"
             >
-              Model accuracy →
+              Full history →
             </Link>
           </div>
-          {recentResults.map((game) => {
-            const homeWon =
-              game.home_score != null &&
-              game.away_score != null &&
-              game.home_score > game.away_score
-            const awayWon =
-              game.home_score != null &&
-              game.away_score != null &&
-              game.away_score > game.home_score
-            const pred = game.prediction!
-            const modelFavoredHome = pred.home_win_prob >= pred.away_win_prob
-            const correct =
-              (modelFavoredHome && homeWon) || (!modelFavoredHome && awayWon)
-            const homeAbbr = game.home_team?.abbreviation ?? "HOM"
-            const awayAbbr = game.away_team?.abbreviation ?? "AWY"
-
-            return (
-              <Link
-                key={game.id}
-                href={`/games/${game.id}`}
-                className="interactive-row flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-3 py-3 last:border-0 sm:px-4"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <TeamMonogram abbreviation={awayAbbr} size="sm" />
-                  <span className="font-mono-stat text-sm tabular-nums">
-                    {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
-                  </span>
-                  <TeamMonogram abbreviation={homeAbbr} size="sm" />
-                </div>
-                <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-                  <span className="font-mono-stat text-[10px] text-muted-foreground">
-                    {format(parseISO(game.date), "MMM d")}
-                  </span>
-                  <span className="font-mono-stat text-xs text-muted-foreground">
-                    Model {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}
-                  </span>
-                  <Badge variant={correct ? "default" : "destructive"} className="ml-auto text-[10px] sm:ml-0">
-                    {correct ? "Hit" : "Miss"}
-                  </Badge>
-                </div>
-              </Link>
-            )
-          })}
+          {recentResults.map((game) => (
+            <HistoryResultRow key={game.id} game={game} />
+          ))}
         </section>
       )}
     </div>

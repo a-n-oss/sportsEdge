@@ -96,7 +96,12 @@ async def process_completed_games(session: AsyncSession, league: str) -> None:
 
 
 async def update_predictions(session: AsyncSession, league: str) -> None:
-    """Generate or update predictions for scheduled games."""
+    """Generate or update predictions for scheduled games only.
+
+    Accuracy/history require a scheduled→final cycle: we never invent
+    retrospective predictions for games first seen already STATUS_FINAL.
+    Existing prediction rows are left intact when status flips to final.
+    """
     result = await session.execute(select(Game).where(Game.league == league, Game.status == "STATUS_SCHEDULED"))
     scheduled_games = result.scalars().all()
 

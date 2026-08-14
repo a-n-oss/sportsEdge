@@ -47,7 +47,12 @@ async def get_games(
     if league:
         stmt = stmt.where(Game.league == league.lower())
     if status:
-        stmt = stmt.where(Game.status == status)
+        # Comma-separated allows STATUS_FINAL + seed "completed" in one request.
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if len(statuses) == 1:
+            stmt = stmt.where(Game.status == statuses[0])
+        elif statuses:
+            stmt = stmt.where(Game.status.in_(statuses))
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -231,10 +236,11 @@ def _compute_accuracy(games: list[Game]) -> dict:
 
 @router.get("/accuracy")
 async def get_accuracy(db: AsyncSession = Depends(get_db)):  # noqa: B008
+    # ESPN stores STATUS_FINAL; seed/tests may use "completed".
     stmt = (
         select(Game)
         .options(selectinload(Game.prediction))
-        .where(Game.status == "completed")
+        .where(Game.status.in_(("STATUS_FINAL", "completed")))
         .where(Game.home_score.is_not(None))
         .where(Game.away_score.is_not(None))
     )

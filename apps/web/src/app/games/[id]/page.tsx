@@ -9,6 +9,7 @@ import { WinProbBar } from "@/components/WinProbBar"
 import { RatingChart } from "@/components/RatingChart"
 import { Badge } from "@/components/ui/badge"
 import { formatElo, formatProb } from "@/lib/format"
+import { isCompletedStatus } from "@/lib/games"
 import { format, parseISO } from "date-fns"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -59,7 +60,7 @@ export default async function MatchupPage({
       .filter(
         (g) =>
           (g.home_team_id === teamId || g.away_team_id === teamId) &&
-          g.status === "completed" &&
+          isCompletedStatus(g.status) &&
           g.home_score != null &&
           g.away_score != null
       )

@@ -1,10 +1,8 @@
 import { getAccuracy, getGames } from "@/lib/api"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Badge } from "@/components/ui/badge"
-import { TeamMonogram } from "@/components/TeamMonogram"
-import { formatProb } from "@/lib/format"
-import { sortCompleted } from "@/lib/games"
-import { format, parseISO } from "date-fns"
+import { HistoryResultRow } from "@/components/HistoryResultRow"
+import { COMPLETED_STATUS_QUERY, sortCompleted } from "@/lib/games"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -12,7 +10,7 @@ export const dynamic = "force-dynamic"
 export default async function AccuracyPage() {
   const [accuracy, games] = await Promise.all([
     getAccuracy().catch(() => null),
-    getGames({ status: "completed", limit: 100 }).catch(() => []),
+    getGames({ status: COMPLETED_STATUS_QUERY, limit: 100 }).catch(() => []),
   ])
 
   const results = sortCompleted(games).slice(0, 20)
@@ -28,16 +26,24 @@ export default async function AccuracyPage() {
       />
 
       {!hasData ? (
-        <div className="panel p-12 text-center border-dashed">
-          <p className="text-muted-foreground text-lg">No accuracy metrics available yet.</p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Predictions need to be resolved against completed games first.
+        <div className="panel border-dashed p-10 text-center sm:p-12">
+          <p className="text-lg text-muted-foreground">No accuracy metrics available yet.</p>
+          <p className="mt-2 max-w-lg mx-auto text-sm text-muted-foreground">
+            We only score games that had a pre-game prediction stored while scheduled, then later
+            finalized. Games first synced already final never get a retrospective pick — so
+            sample size stays 0 until that scheduled→final cycle happens in production.
           </p>
           {accuracy && (
-            <p className="font-mono-stat text-xs text-muted-foreground mt-4">
+            <p className="mt-4 font-mono-stat text-xs text-muted-foreground">
               Sample size: {sampleSize}
             </p>
           )}
+          <Link
+            href="/history"
+            className="mt-6 inline-block font-display text-xs uppercase tracking-wider text-primary hover:underline"
+          >
+            Prediction history →
+          </Link>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
@@ -105,49 +111,20 @@ export default async function AccuracyPage() {
 
       {results.length > 0 && (
         <section className="panel overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
             <h2 className="font-display text-sm uppercase tracking-[0.15em]">
               Picks vs Outcomes
             </h2>
+            <Link
+              href="/history"
+              className="font-display text-[10px] uppercase tracking-wider text-primary hover:underline"
+            >
+              Full history →
+            </Link>
           </div>
-          {results.map((game) => {
-            const homeWon = game.home_score! > game.away_score!
-            const awayWon = game.away_score! > game.home_score!
-            const pred = game.prediction!
-            const modelFavoredHome = pred.home_win_prob >= pred.away_win_prob
-            const correct =
-              (modelFavoredHome && homeWon) || (!modelFavoredHome && awayWon)
-            const homeAbbr = game.home_team?.abbreviation ?? "HOM"
-            const awayAbbr = game.away_team?.abbreviation ?? "AWY"
-
-            return (
-              <Link
-                key={game.id}
-                href={`/games/${game.id}`}
-                className="interactive-row flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/60 px-3 py-3 last:border-0 sm:px-4"
-              >
-                <span className="w-12 shrink-0 font-mono-stat text-[10px] text-muted-foreground sm:w-14">
-                  {format(parseISO(game.date), "MMM d")}
-                </span>
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <TeamMonogram abbreviation={awayAbbr} size="sm" />
-                  <span className="font-mono-stat text-sm tabular-nums">
-                    {awayAbbr} {game.away_score} – {game.home_score} {homeAbbr}
-                  </span>
-                  <TeamMonogram abbreviation={homeAbbr} size="sm" />
-                </div>
-                <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-                  <span className="font-mono-stat text-xs text-muted-foreground">
-                    Pred {formatProb(Math.max(pred.home_win_prob, pred.away_win_prob))}{" "}
-                    {modelFavoredHome ? homeAbbr : awayAbbr}
-                  </span>
-                  <Badge variant={correct ? "default" : "destructive"} className="ml-auto text-[10px] sm:ml-0">
-                    {correct ? "Hit" : "Miss"}
-                  </Badge>
-                </div>
-              </Link>
-            )
-          })}
+          {results.map((game) => (
+            <HistoryResultRow key={game.id} game={game} />
+          ))}
         </section>
       )}
     </div>

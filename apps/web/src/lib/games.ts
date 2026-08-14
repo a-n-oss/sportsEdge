@@ -1,4 +1,82 @@
-import type { Game } from "@/lib/api"
+import type { Game, Prediction } from "@/lib/api"
+
+/** ESPN scoreboards use STATUS_*; seed/tests may use short labels. */
+export function isCompletedStatus(status: string): boolean {
+  return status === "STATUS_FINAL" || status === "completed"
+}
+
+export type OutcomeSide = "home" | "away" | "draw"
+
+export interface PredictionCloseness {
+  /** Pre-game probability assigned to the eventual outcome (winner or draw). */
+  winnerProb: number
+  /** Absolute gap from a perfect call on that side: 1 − winnerProb. Lower = closer. */
+  missBy: number
+  outcome: OutcomeSide
+  favoriteHit: boolean
+  modelFavorite: OutcomeSide
+}
+
+/**
+ * How close we predicted: the pre-game win% (or draw%) for what actually happened.
+ * Higher winnerProb / lower missBy means the model put more weight on the real result.
+ */
+export function predictionCloseness(game: Game): PredictionCloseness | null {
+  const pred = game.prediction
+  if (
+    !pred ||
+    game.home_score == null ||
+    game.away_score == null ||
+    !isCompletedStatus(game.status)
+  ) {
+    return null
+  }
+
+  const outcome: OutcomeSide =
+    game.home_score > game.away_score
+      ? "home"
+      : game.away_score > game.home_score
+        ? "away"
+        : "draw"
+
+  const modelFavorite = modelFavoriteSide(pred)
+  const winnerProb = outcomeProbability(pred, outcome)
+  const favoriteHit =
+    outcome === "draw"
+      ? modelFavorite === "draw"
+      : modelFavorite === outcome
+
+  return {
+    winnerProb,
+    missBy: 1 - winnerProb,
+    outcome,
+    favoriteHit,
+    modelFavorite,
+  }
+}
+
+function modelFavoriteSide(pred: Prediction): OutcomeSide {
+  const draw = pred.draw_prob ?? 0
+  if (draw >= pred.home_win_prob && draw >= pred.away_win_prob) {
+    return "draw"
+  }
+  return pred.home_win_prob >= pred.away_win_prob ? "home" : "away"
+}
+
+function outcomeProbability(pred: Prediction, outcome: OutcomeSide): number {
+  switch (outcome) {
+    case "home":
+      return pred.home_win_prob
+    case "away":
+      return pred.away_win_prob
+    case "draw":
+      return pred.draw_prob ?? 0
+    default: {
+      const _exhaustive: never = outcome
+      return _exhaustive
+    }
+  }
+}
 
 /** Soonest upcoming game with a prediction; otherwise soonest upcoming. */
 export function pickFeaturedGame(games: Game[]): Game | null {
@@ -40,7 +118,7 @@ export function sortUpcoming(games: Game[]): Game[] {
   startOfToday.setHours(0, 0, 0, 0)
   return dedupeMirrorMatchups(
     games
-      .filter((g) => new Date(g.date) >= startOfToday && g.status !== "completed")
+      .filter((g) => new Date(g.date) >= startOfToday && !isCompletedStatus(g.status))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   )
 }
@@ -49,10 +127,13 @@ export function sortCompleted(games: Game[]): Game[] {
   return games
     .filter(
       (g) =>
-        g.status === "completed" &&
+        isCompletedStatus(g.status) &&
         g.home_score !== null &&
         g.away_score !== null &&
         g.prediction
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 }
+
+/** Status query value that matches ESPN finals and seed/test completed rows. */
+export const COMPLETED_STATUS_QUERY = "STATUS_FINAL,completed" as const
