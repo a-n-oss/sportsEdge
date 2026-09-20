@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { buildGamesSearchParams } from "./api"
+import { buildGamesSearchParams, getGames } from "./api"
 import { COMPLETED_STATUS_QUERY } from "./games"
 
 describe("buildGamesSearchParams", () => {
@@ -20,5 +20,31 @@ describe("buildGamesSearchParams", () => {
     const params = buildGamesSearchParams({ league: "nba", limit: 100 })
     expect(params.has("has_prediction")).toBe(false)
     expect(params.get("league")).toBe("nba")
+  })
+})
+
+describe("getGames", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("fetches /games with has_prediction so history is not clogged by unpredicted finals", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getGames({
+      status: COMPLETED_STATUS_QUERY,
+      limit: 200,
+      hasPrediction: true,
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+    const url = String(fetchMock.mock.calls[0]?.[0])
+    expect(url).toContain("has_prediction=true")
+    expect(url).toContain("limit=200")
+    expect(url).toContain(`status=${encodeURIComponent(COMPLETED_STATUS_QUERY)}`)
   })
 })
