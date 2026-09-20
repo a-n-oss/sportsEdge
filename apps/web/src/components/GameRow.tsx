@@ -1,8 +1,9 @@
 import Link from "next/link"
 import { format, parseISO } from "date-fns"
 import { TeamMonogram } from "@/components/TeamMonogram"
-import type { Game } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
+import type { Game } from "@/lib/api"
+import { formatLeagueLabel } from "@/lib/league"
 import { cn } from "@/lib/utils"
 
 interface GameRowProps {
@@ -35,7 +36,7 @@ export function GameRow({ game, className }: GameRowProps) {
     >
       <div className="w-14 shrink-0 sm:w-16">
         <Badge variant="outline" className="px-1.5 text-[10px] uppercase tracking-wider">
-          {game.league}
+          {formatLeagueLabel(game.league)}
         </Badge>
         <p className="mt-1 font-mono-stat text-[10px] text-muted-foreground">
           {format(parseISO(game.date), "h:mm a")}

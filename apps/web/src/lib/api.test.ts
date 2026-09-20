@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { buildGamesSearchParams, getGames } from "./api"
+import { buildGamesSearchParams, getAccuracy, getGames } from "./api"
 import { COMPLETED_STATUS_QUERY } from "./games"
 
 describe("buildGamesSearchParams", () => {
@@ -46,5 +46,39 @@ describe("getGames", () => {
     expect(url).toContain("has_prediction=true")
     expect(url).toContain("limit=200")
     expect(url).toContain(`status=${encodeURIComponent(COMPLETED_STATUS_QUERY)}`)
+  })
+})
+
+describe("getAccuracy", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("omits league unless requested", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ brier_score: 0.2, calibration: [], sample_size: 0 }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getAccuracy()
+
+    const url = String(fetchMock.mock.calls[0]?.[0])
+    expect(url).toContain("/accuracy")
+    expect(url).not.toContain("league=")
+  })
+
+  it("passes league so Accuracy chips filter the Brier sample", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ brier_score: 0.16, calibration: [], sample_size: 1 }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getAccuracy({ league: "nba" })
+
+    const url = String(fetchMock.mock.calls[0]?.[0])
+    expect(url).toContain("/accuracy")
+    expect(url).toContain("league=nba")
   })
 })

@@ -1,16 +1,39 @@
-import { getAccuracy, getGames } from "@/lib/api"
+import { getAccuracy, getGamesForLeagues, getLeagues } from "@/lib/api"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Badge } from "@/components/ui/badge"
 import { HistoryResultRow } from "@/components/HistoryResultRow"
+import { LimitedLeagueNote } from "@/components/LimitedLeagueNote"
 import { COMPLETED_STATUS_QUERY, sortCompleted } from "@/lib/games"
+import {
+  fallbackLeagues,
+  isSelectedLeagueReady,
+  leaguesToQuery,
+  readyLeagueKeys,
+} from "@/lib/league"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
 
-export default async function AccuracyPage() {
+interface AccuracyPageProps {
+  searchParams: Promise<{ league?: string }>
+}
+
+export default async function AccuracyPage({ searchParams }: AccuracyPageProps) {
+  const params = await searchParams
+  const league = params.league?.toLowerCase()
+
+  const leagues = await getLeagues().catch(() => fallbackLeagues())
+  const readyKeys = readyLeagueKeys(leagues)
+  const queryLeagues = leaguesToQuery(league, readyKeys)
+  const stubSelected = !isSelectedLeagueReady(league, new Set(readyKeys))
+
   const [accuracy, games] = await Promise.all([
-    getAccuracy().catch(() => null),
-    getGames({ status: COMPLETED_STATUS_QUERY, limit: 100, hasPrediction: true }).catch(() => []),
+    (league ? getAccuracy({ league }) : getAccuracy()).catch(() => null),
+    getGamesForLeagues(queryLeagues, {
+      status: COMPLETED_STATUS_QUERY,
+      limit: 100,
+      hasPrediction: true,
+    }),
   ])
 
   const results = sortCompleted(games).slice(0, 20)
@@ -19,11 +42,14 @@ export default async function AccuracyPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Model Trust"
-        title="Model Accuracy"
-        description="Brier scores and calibration from completed games with stored pre-game predictions."
-      />
+      <div>
+        <PageHeader
+          eyebrow="Model Trust"
+          title="Model Accuracy"
+          description="Brier scores and calibration from completed games with stored pre-game predictions."
+        />
+        {stubSelected && <LimitedLeagueNote />}
+      </div>
 
       {!hasData ? (
         <div className="panel border-dashed p-10 text-center sm:p-12">

@@ -1,10 +1,17 @@
-import { getGames, getStandings } from "@/lib/api"
+import { getGamesForLeagues, getLeagues, getStandings } from "@/lib/api"
 import { FeaturedMatchup } from "@/components/FeaturedMatchup"
 import { UpNextRail } from "@/components/UpNextRail"
 import { GameRow } from "@/components/GameRow"
 import { HistoryResultRow } from "@/components/HistoryResultRow"
 import { PageHeader } from "@/components/layout/PageHeader"
+import { EmptyBoard } from "@/components/EmptyBoard"
 import { pickFeaturedGame, sortUpcoming, sortCompleted } from "@/lib/games"
+import {
+  fallbackLeagues,
+  isSelectedLeagueReady,
+  leaguesToQuery,
+  readyLeagueKeys,
+} from "@/lib/league"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -17,10 +24,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const params = await searchParams
   const league = params.league?.toLowerCase()
 
-  const games = await getGames({
-    league,
-    limit: 100,
-  }).catch(() => [])
+  const leagues = await getLeagues().catch(() => fallbackLeagues())
+  const readyKeys = readyLeagueKeys(leagues)
+  const queryLeagues = leaguesToQuery(league, readyKeys)
+  const games = await getGamesForLeagues(queryLeagues, { limit: 100 })
+  const boardReady = isSelectedLeagueReady(league, new Set(readyKeys))
 
   const upcoming = sortUpcoming(games)
   const featured = pickFeaturedGame(upcoming)
@@ -54,12 +62,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           <UpNextRail games={upNext} />
         </div>
       ) : (
-        <div className="panel p-12 text-center border-dashed">
-          <p className="text-muted-foreground text-lg">No upcoming games found.</p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Sync data or adjust the league filter.
-          </p>
-        </div>
+        <EmptyBoard ready={boardReady} />
       )}
 
       {rest.length > 0 && (

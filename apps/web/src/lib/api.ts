@@ -1,4 +1,5 @@
 import { z } from "zod"
+import type { LeagueInfo } from "./league"
 
 // Prefer server-only API_URL (Railway private networking). NEXT_PUBLIC_API_URL
 // remains a local/dev fallback. Browser code must not call the API directly.
@@ -116,8 +117,16 @@ export async function fetchFromAPI<T>(
 // API Methods
 // ----------------------------------------------------------------------
 
-export async function getLeagues(): Promise<string[]> {
-  return fetchFromAPI("/leagues", z.array(z.string()))
+export async function getLeagues(): Promise<LeagueInfo[]> {
+  return fetchFromAPI(
+    "/leagues",
+    z.array(
+      z.object({
+        key: z.string(),
+        ready: z.boolean(),
+      })
+    )
+  )
 }
 
 export interface GamesQuery {
@@ -140,6 +149,16 @@ export function buildGamesSearchParams(query: GamesQuery = {}): URLSearchParams 
 export async function getGames(query: GamesQuery = {}): Promise<Game[]> {
   const qs = buildGamesSearchParams(query).toString()
   return fetchFromAPI(`/games${qs ? `?${qs}` : ""}`, z.array(GameSchema))
+}
+
+export async function getGamesForLeagues(
+  leagues: string[],
+  query: Omit<GamesQuery, "league"> = {}
+): Promise<Game[]> {
+  const batches = await Promise.all(
+    leagues.map((league) => getGames({ ...query, league }).catch(() => []))
+  )
+  return batches.flat()
 }
 
 export async function getGame(id: number): Promise<Game> {
@@ -167,6 +186,9 @@ export async function getLastRefresh(): Promise<LastRefresh> {
   return fetchFromAPI("/meta/last-refresh", LastRefreshSchema)
 }
 
-export async function getAccuracy(): Promise<Accuracy> {
-  return fetchFromAPI("/accuracy", AccuracySchema)
+export async function getAccuracy(query: { league?: string } = {}): Promise<Accuracy> {
+  const params = new URLSearchParams()
+  if (query.league) params.set("league", query.league)
+  const qs = params.toString()
+  return fetchFromAPI(`/accuracy${qs ? `?${qs}` : ""}`, AccuracySchema)
 }

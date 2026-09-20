@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.deps import verify_admin
+from api.league_status import league_status_rows
 from db.models import FetchRun, Game, Rating, RatingHistory, Team
 from db.session import get_db
 from fetchers.espn import LEAGUE_MAP, backfill_games, resolve_backfill_window, sync_games
@@ -26,8 +27,8 @@ _SYNCED_TABLES = (
 
 
 @router.get("/leagues")
-async def get_leagues():
-    return list(LEAGUE_MAP.keys())
+async def get_leagues(db: AsyncSession = Depends(get_db)):  # noqa: B008
+    return await league_status_rows(db)
 
 
 @router.get("/games")
@@ -245,7 +246,10 @@ def _compute_accuracy(games: list[Game]) -> dict:
 
 
 @router.get("/accuracy")
-async def get_accuracy(db: AsyncSession = Depends(get_db)):  # noqa: B008
+async def get_accuracy(
+    league: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
     # ESPN stores STATUS_FINAL; seed/tests may use "completed".
     stmt = (
         select(Game)
@@ -255,6 +259,8 @@ async def get_accuracy(db: AsyncSession = Depends(get_db)):  # noqa: B008
         .where(Game.away_score.is_not(None))
         .where(Game.prediction.has())
     )
+    if league:
+        stmt = stmt.where(Game.league == league.lower())
     result = await db.execute(stmt)
     games = result.scalars().all()
     return _compute_accuracy(list(games))

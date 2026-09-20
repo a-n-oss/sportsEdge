@@ -16,7 +16,51 @@ async def test_get_leagues(async_client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
-    assert "nba" in data
+    assert {row["key"] for row in data} >= {"nba", "nfl", "mlb", "nhl", "epl"}
+    assert all(row["ready"] is False for row in data)
+
+
+@pytest.mark.asyncio
+async def test_leagues_ready_when_any_elo_leaves_default(async_client: AsyncClient, get_db_session: AsyncSession):
+    now = datetime.now(UTC)
+    team = Team(id=1, league="nba", name="Los Angeles Lakers", abbreviation="LAL")
+    get_db_session.add(team)
+    await get_db_session.flush()
+    get_db_session.add(Rating(team_id=1, elo_rating=1550.0, last_updated=now))
+    await get_db_session.commit()
+
+    response = await async_client.get("/api/v1/leagues")
+    by_key = {row["key"]: row["ready"] for row in response.json()}
+    assert by_key["nba"] is True
+    assert by_key["nfl"] is False
+
+
+@pytest.mark.asyncio
+async def test_leagues_ready_when_upcoming_slate_has_elo_delta(async_client: AsyncClient, get_db_session: AsyncSession):
+    now = datetime.now(UTC)
+    home = Team(id=10, league="nhl", name="Home", abbreviation="HOM")
+    away = Team(id=11, league="nhl", name="Away", abbreviation="AWY")
+    get_db_session.add_all([home, away])
+    await get_db_session.flush()
+    get_db_session.add_all(
+        [
+            Rating(team_id=10, elo_rating=1480.0, last_updated=now),
+            Rating(team_id=11, elo_rating=1520.0, last_updated=now),
+            Game(
+                id=50,
+                league="nhl",
+                date=now + timedelta(days=1),
+                home_team_id=10,
+                away_team_id=11,
+                status="STATUS_SCHEDULED",
+            ),
+        ]
+    )
+    await get_db_session.commit()
+
+    response = await async_client.get("/api/v1/leagues")
+    by_key = {row["key"]: row["ready"] for row in response.json()}
+    assert by_key["nhl"] is True
 
 
 @pytest.mark.asyncio
@@ -487,3 +531,64 @@ async def test_accuracy_sample_excludes_unpredicted_finals(async_client: AsyncCl
     body = response.json()
     assert body["sample_size"] == 1
     assert body["brier_score"] == pytest.approx(0.16)
+
+
+@pytest.mark.asyncio
+async def test_accuracy_honors_league_query(async_client: AsyncClient, get_db_session: AsyncSession):
+    now = datetime.now(UTC)
+    get_db_session.add_all(
+        [
+            Team(id=1, league="nba", name="NBA Home", abbreviation="NBH"),
+            Team(id=2, league="nba", name="NBA Away", abbreviation="NBA"),
+            Team(id=3, league="nfl", name="NFL Home", abbreviation="NFH"),
+            Team(id=4, league="nfl", name="NFL Away", abbreviation="NFA"),
+        ]
+    )
+    await get_db_session.commit()
+    get_db_session.add_all(
+        [
+            Game(
+                id=1,
+                league="nba",
+                date=now - timedelta(days=2),
+                status="STATUS_FINAL",
+                home_team_id=1,
+                away_team_id=2,
+                home_score=100,
+                away_score=90,
+            ),
+            Game(
+                id=2,
+                league="nfl",
+                date=now - timedelta(days=1),
+                status="STATUS_FINAL",
+                home_team_id=3,
+                away_team_id=4,
+                home_score=21,
+                away_score=28,
+            ),
+        ]
+    )
+    await get_db_session.commit()
+    get_db_session.add_all(
+        [
+            Prediction(game_id=1, home_win_prob=0.6, away_win_prob=0.4, draw_prob=None),
+            Prediction(game_id=2, home_win_prob=0.7, away_win_prob=0.3, draw_prob=None),
+        ]
+    )
+    await get_db_session.commit()
+
+    nba = await async_client.get("/api/v1/accuracy?league=nba")
+    assert nba.status_code == 200
+    assert nba.json()["sample_size"] == 1
+    assert nba.json()["brier_score"] == pytest.approx(0.16)
+
+    nfl = await async_client.get("/api/v1/accuracy?league=NFL")
+    assert nfl.status_code == 200
+    assert nfl.json()["sample_size"] == 1
+    # Home favored 0.7 but away won → (0.7 - 0)^2
+    assert nfl.json()["brier_score"] == pytest.approx(0.49)
+
+    all_leagues = await async_client.get("/api/v1/accuracy")
+    assert all_leagues.status_code == 200
+    assert all_leagues.json()["sample_size"] == 2
