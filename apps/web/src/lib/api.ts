@@ -162,7 +162,10 @@ export async function getGamesForLeagues(
 }
 
 export async function getGame(id: number): Promise<Game> {
-  return fetchFromAPI(`/games/${id}`, GameSchema)
+  return fetchFromAPI(`/games/${id}`, GameSchema, {
+    cache: "no-store",
+    next: { revalidate: 0 },
+  })
 }
 
 export async function getTeams(league?: string): Promise<Team[]> {

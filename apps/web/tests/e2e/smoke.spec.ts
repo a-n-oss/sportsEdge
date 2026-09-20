@@ -16,6 +16,9 @@ test.describe('SportsEdge Smoke Tests', () => {
     await page.locator('a[href^="/games/"]').first().click();
     await expect(page.getByText('Why This Edge').first()).toBeVisible();
     await expect(page.getByText('Home-field advantage').first()).toBeVisible();
+    await expect(page.getByText('STATUS_SCHEDULED')).toHaveCount(0);
+    await expect(page.getByText('Crunching the numbers…')).toHaveCount(0);
+    await expect(page.getByText('0 – 0')).toHaveCount(0);
   });
 
   test('should navigate to teams directory and view a team detail', async ({ page }) => {
@@ -52,6 +55,16 @@ test.describe('SportsEdge Smoke Tests', () => {
     await page.goto('/history');
     await expect(page.locator('text=Prediction History').first()).toBeVisible();
     await expect(page.getByText(/Closeness/i).first()).toBeVisible();
+  });
+
+  test('history final opens the same score and Final status on detail', async ({ page }) => {
+    await page.goto('/history');
+    await page.locator('a[href="/games/101"]').click();
+    await expect(page.getByText('Final').first()).toBeVisible();
+    await expect(page.getByText('105 – 110')).toBeVisible();
+    await expect(page.getByText('STATUS_FINAL')).toHaveCount(0);
+    await expect(page.getByText('Predictions pending…')).toHaveCount(0);
+    await expect(page.getByText('Crunching the numbers…')).toHaveCount(0);
   });
 
   test('should load methodology about page', async ({ page }) => {

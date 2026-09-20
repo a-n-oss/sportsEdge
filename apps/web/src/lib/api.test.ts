@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { buildGamesSearchParams, getAccuracy, getGames } from "./api"
+import { buildGamesSearchParams, getAccuracy, getGame, getGames } from "./api"
 import { COMPLETED_STATUS_QUERY } from "./games"
 
 describe("buildGamesSearchParams", () => {
@@ -46,6 +46,37 @@ describe("getGames", () => {
     expect(url).toContain("has_prediction=true")
     expect(url).toContain("limit=200")
     expect(url).toContain(`status=${encodeURIComponent(COMPLETED_STATUS_QUERY)}`)
+  })
+})
+
+describe("getGame", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("fetches a single game without a 60s cache so History detail stays fresh", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 101,
+        league: "nba",
+        date: "2026-09-18T00:00:00Z",
+        home_team_id: 9,
+        away_team_id: 13,
+        home_score: 110,
+        away_score: 105,
+        status: "STATUS_FINAL",
+      }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getGame(101)
+
+    expect(fetchMock).toHaveBeenCalled()
+    const url = String(fetchMock.mock.calls[0]?.[0])
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(url).toContain("/games/101")
+    expect(init.cache).toBe("no-store")
   })
 })
 
