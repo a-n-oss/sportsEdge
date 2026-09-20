@@ -5,6 +5,7 @@ import { WinProbBar } from "@/components/WinProbBar"
 import { Badge } from "@/components/ui/badge"
 import type { Game } from "@/lib/api"
 import { formatElo } from "@/lib/format"
+import { formatLeagueLabel } from "@/lib/league"
 
 interface FeaturedMatchupProps {
   game: Game
@@ -34,7 +35,7 @@ export function FeaturedMatchup({ game, homeElo, awayElo }: FeaturedMatchupProps
           </h2>
         </div>
         <Badge variant="outline" className="shrink-0 uppercase tracking-wider">
-          {game.league}
+          {formatLeagueLabel(game.league)}
         </Badge>
       </div>
 

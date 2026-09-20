@@ -4,6 +4,7 @@ import { TeamMonogram } from "@/components/TeamMonogram"
 import { Badge } from "@/components/ui/badge"
 import type { Game } from "@/lib/api"
 import { formatProb } from "@/lib/format"
+import { formatLeagueLabel } from "@/lib/league"
 import { predictionCloseness, type OutcomeSide } from "@/lib/games"
 import { cn } from "@/lib/utils"
 
@@ -51,7 +52,7 @@ export function HistoryResultRow({ game, className }: HistoryResultRowProps) {
     >
       <div className="flex min-w-0 items-center gap-2">
         <Badge variant="outline" className="shrink-0 px-1.5 text-[10px] uppercase tracking-wider">
-          {game.league}
+          {formatLeagueLabel(game.league)}
         </Badge>
         <span className="font-mono-stat text-[10px] text-muted-foreground">
           {format(parseISO(game.date), "MMM d")}

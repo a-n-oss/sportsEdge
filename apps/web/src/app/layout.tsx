@@ -4,6 +4,7 @@ import "./globals.css"
 import { NavBar } from "@/components/layout/NavBar"
 import { Footer } from "@/components/layout/Footer"
 import { getLastRefresh, getLeagues } from "@/lib/api"
+import { fallbackLeagues } from "@/lib/league"
 
 const oswald = Oswald({
   subsets: ["latin"],
@@ -37,7 +38,7 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const [leagues, lastRefresh] = await Promise.all([
-    getLeagues().catch(() => [] as string[]),
+    getLeagues().catch(() => fallbackLeagues()),
     getLastRefresh().catch(() => null),
   ])
 
@@ -48,7 +49,7 @@ export default async function RootLayout({
       >
         <div className="flex min-h-screen flex-col broadcast-bg">
           <NavBar
-            leagues={leagues.length > 0 ? leagues : ["nfl", "nba", "mlb", "nhl", "epl"]}
+            leagues={leagues.length > 0 ? leagues : fallbackLeagues()}
             lastRefresh={lastRefresh?.timestamp ?? null}
           />
           <main className="container mx-auto max-w-full flex-1 px-3 py-6 sm:px-4 sm:py-8">

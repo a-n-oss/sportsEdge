@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Suspense } from "react"
 import { LeagueTabs } from "./LeagueTabs"
 import { formatUpdatedAgo } from "@/lib/format"
+import type { LeagueInfo } from "@/lib/league"
 import { cn } from "@/lib/utils"
 
 const NAV_LINKS = [
@@ -14,7 +15,7 @@ const NAV_LINKS = [
 ] as const
 
 interface NavBarProps {
-  leagues: string[]
+  leagues: LeagueInfo[]
   lastRefresh: string | null
 }
 

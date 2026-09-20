@@ -1,7 +1,14 @@
-import { getGames } from "@/lib/api"
+import { getGamesForLeagues, getLeagues } from "@/lib/api"
 import { HistoryResultRow } from "@/components/HistoryResultRow"
 import { PageHeader } from "@/components/layout/PageHeader"
+import { LimitedLeagueNote } from "@/components/LimitedLeagueNote"
 import { COMPLETED_STATUS_QUERY, sortCompleted } from "@/lib/games"
+import {
+  fallbackLeagues,
+  isSelectedLeagueReady,
+  leaguesToQuery,
+  readyLeagueKeys,
+} from "@/lib/league"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -14,21 +21,27 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const params = await searchParams
   const league = params.league?.toLowerCase()
 
-  const games = await getGames({
-    league,
+  const leagues = await getLeagues().catch(() => fallbackLeagues())
+  const readyKeys = readyLeagueKeys(leagues)
+  const queryLeagues = leaguesToQuery(league, readyKeys)
+  const games = await getGamesForLeagues(queryLeagues, {
     status: COMPLETED_STATUS_QUERY,
     limit: 200,
-  }).catch(() => [])
+  })
+  const stubSelected = !isSelectedLeagueReady(league, new Set(readyKeys))
 
   const results = sortCompleted(games)
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Scoreboard Archive"
-        title="Prediction History"
-        description="Final scores vs our stored pre-game win probabilities. Only games we predicted before tip-off, then saw finalize."
-      />
+      <div>
+        <PageHeader
+          eyebrow="Scoreboard Archive"
+          title="Prediction History"
+          description="Final scores vs our stored pre-game win probabilities. Only games we predicted before tip-off, then saw finalize."
+        />
+        {stubSelected && <LimitedLeagueNote />}
+      </div>
 
       <p className="max-w-2xl text-sm text-muted-foreground">
         <span className="font-display text-xs uppercase tracking-wider text-primary">

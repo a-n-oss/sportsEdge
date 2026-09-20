@@ -13,7 +13,51 @@ async def test_get_leagues(async_client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
-    assert "nba" in data
+    assert {row["key"] for row in data} >= {"nba", "nfl", "mlb", "nhl", "epl"}
+    assert all(row["ready"] is False for row in data)
+
+
+@pytest.mark.asyncio
+async def test_leagues_ready_when_any_elo_leaves_default(async_client: AsyncClient, get_db_session: AsyncSession):
+    now = datetime.now(UTC)
+    team = Team(id=1, league="nba", name="Los Angeles Lakers", abbreviation="LAL")
+    get_db_session.add(team)
+    await get_db_session.flush()
+    get_db_session.add(Rating(team_id=1, elo_rating=1550.0, last_updated=now))
+    await get_db_session.commit()
+
+    response = await async_client.get("/api/v1/leagues")
+    by_key = {row["key"]: row["ready"] for row in response.json()}
+    assert by_key["nba"] is True
+    assert by_key["nfl"] is False
+
+
+@pytest.mark.asyncio
+async def test_leagues_ready_when_upcoming_slate_has_elo_delta(async_client: AsyncClient, get_db_session: AsyncSession):
+    now = datetime.now(UTC)
+    home = Team(id=10, league="nhl", name="Home", abbreviation="HOM")
+    away = Team(id=11, league="nhl", name="Away", abbreviation="AWY")
+    get_db_session.add_all([home, away])
+    await get_db_session.flush()
+    get_db_session.add_all(
+        [
+            Rating(team_id=10, elo_rating=1480.0, last_updated=now),
+            Rating(team_id=11, elo_rating=1520.0, last_updated=now),
+            Game(
+                id=50,
+                league="nhl",
+                date=now + timedelta(days=1),
+                home_team_id=10,
+                away_team_id=11,
+                status="STATUS_SCHEDULED",
+            ),
+        ]
+    )
+    await get_db_session.commit()
+
+    response = await async_client.get("/api/v1/leagues")
+    by_key = {row["key"]: row["ready"] for row in response.json()}
+    assert by_key["nhl"] is True
 
 
 @pytest.mark.asyncio

@@ -2,7 +2,15 @@ import { getStandings, getTeams, getLeagues, type Team } from "@/lib/api"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { TeamMonogram } from "@/components/TeamMonogram"
 import { Badge } from "@/components/ui/badge"
+import { LimitedLeagueNote } from "@/components/LimitedLeagueNote"
 import { formatElo } from "@/lib/format"
+import {
+  fallbackLeagues,
+  formatLeagueLabel,
+  isSelectedLeagueReady,
+  readyLeagueKeys,
+  selectVisibleItems,
+} from "@/lib/league"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -17,15 +25,19 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
 
   const [teams, leagues] = await Promise.all([
     getTeams(leagueFilter).catch(() => []),
-    getLeagues().catch(() => [] as string[]),
+    getLeagues().catch(() => fallbackLeagues()),
   ])
+
+  const readyKeys = new Set(readyLeagueKeys(leagues))
+  const visibleTeams = selectVisibleItems(teams, leagueFilter, readyKeys)
+  const stubSelected = !isSelectedLeagueReady(leagueFilter, readyKeys)
 
   const eloByTeam = new Map<number, number>()
   const leaguesToLoad = leagueFilter
     ? [leagueFilter]
-    : leagues.length > 0
-      ? leagues
-      : [...new Set(teams.map((t) => t.league))]
+    : readyKeys.size > 0
+      ? [...readyKeys]
+      : [...new Set(visibleTeams.map((t) => t.league))]
 
   await Promise.all(
     leaguesToLoad.map(async (lg) => {
@@ -36,7 +48,7 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
     })
   )
 
-  const grouped = teams.reduce<Record<string, Team[]>>((acc, team) => {
+  const grouped = visibleTeams.reduce<Record<string, Team[]>>((acc, team) => {
     if (!acc[team.league]) acc[team.league] = []
     acc[team.league].push(team)
     return acc
@@ -44,16 +56,21 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
 
   return (
     <div className="space-y-12">
-      <PageHeader
-        eyebrow="Directory"
-        title="Teams"
-        description="Browse teams across active leagues. Elo shown when ratings exist."
-      />
+      <div>
+        <PageHeader
+          eyebrow="Directory"
+          title="Teams"
+          description="Browse teams across active leagues. Elo shown when ratings exist."
+        />
+        {stubSelected && <LimitedLeagueNote />}
+      </div>
 
       {Object.entries(grouped).map(([league, leagueTeams]) => (
         <section key={league} className="space-y-4">
           <div className="flex items-center gap-3 border-b border-border pb-2">
-            <h2 className="font-display text-xl uppercase tracking-wide">{league}</h2>
+            <h2 className="font-display text-xl uppercase tracking-wide">
+              {formatLeagueLabel(league)}
+            </h2>
             <Badge variant="secondary" className="rounded-md">
               {leagueTeams.length} teams
             </Badge>
@@ -80,7 +97,9 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
                     <p className="font-mono-stat text-xs text-muted-foreground">
                       {team.abbreviation}
                       <span className="mx-1.5 text-border">·</span>
-                      <span className="uppercase tracking-wider">{team.league}</span>
+                      <span className="uppercase tracking-wider">
+                        {formatLeagueLabel(team.league)}
+                      </span>
                     </p>
                   </div>
                   {elo != null && (
@@ -100,7 +119,7 @@ export default async function TeamsDirectory({ searchParams }: TeamsPageProps) {
         </section>
       ))}
 
-      {teams.length === 0 && (
+      {visibleTeams.length === 0 && (
         <div className="panel p-12 text-center border-dashed">
           <p className="text-muted-foreground text-lg">No teams found.</p>
         </div>

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.deps import verify_admin
+from api.league_status import league_status_rows
 from db.models import FetchRun, Game, Rating, RatingHistory, Team
 from db.session import get_db
 from fetchers.espn import LEAGUE_MAP, sync_games
@@ -23,8 +24,8 @@ _SYNCED_TABLES = (
 
 
 @router.get("/leagues")
-async def get_leagues():
-    return list(LEAGUE_MAP.keys())
+async def get_leagues(db: AsyncSession = Depends(get_db)):  # noqa: B008
+    return await league_status_rows(db)
 
 
 @router.get("/games")
