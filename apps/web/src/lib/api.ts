@@ -124,14 +124,21 @@ export interface GamesQuery {
   league?: string
   status?: string
   limit?: number
+  /** Only games that already have a stored pre-game prediction. */
+  hasPrediction?: boolean
 }
 
-export async function getGames(query: GamesQuery = {}): Promise<Game[]> {
+export function buildGamesSearchParams(query: GamesQuery = {}): URLSearchParams {
   const params = new URLSearchParams()
   if (query.league) params.set("league", query.league)
   if (query.status) params.set("status", query.status)
-  if (query.limit) params.set("limit", String(query.limit))
-  const qs = params.toString()
+  if (query.limit != null) params.set("limit", String(query.limit))
+  if (query.hasPrediction) params.set("has_prediction", "true")
+  return params
+}
+
+export async function getGames(query: GamesQuery = {}): Promise<Game[]> {
+  const qs = buildGamesSearchParams(query).toString()
   return fetchFromAPI(`/games${qs ? `?${qs}` : ""}`, z.array(GameSchema))
 }
 
