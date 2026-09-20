@@ -11,7 +11,8 @@ def rewrite_cobertura_paths(report: Path, repo_root: Path) -> None:
     pytest --cov=. from apps/api emits ``<source>.../apps/api</source>`` and
     filenames like ``fetchers/espn.py``. Sonar indexes ``apps/api/fetchers/espn.py``
     from the repository root, so both the source directory and class filenames
-    must be rewritten.
+    must be rewritten. A filename-only prefix (the old CI sed) leaves ``<source>``
+    pointing at apps/api, so new-code coverage stays at 0%.
     """
     tree = ET.parse(report)
     root = tree.getroot()

@@ -20,6 +20,7 @@ from fetchers.espn import (
     sync_games,
     sync_league_teams,
 )
+from fetchers.schedule import ESPN_MAX_ATTEMPTS
 
 
 def _espn_urls(league: str) -> tuple[str, str]:
@@ -102,6 +103,143 @@ async def test_fetch_scoreboard(espn_mock_data):
 
         result = await fetch_scoreboard(league)
         assert result == espn_mock_data
+
+
+def _nba_scoreboard_url() -> str:
+    sport, espn_league = LEAGUE_MAP["nba"]
+    return f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{espn_league}/scoreboard"
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_retries_on_429_then_succeeds(espn_mock_data, monkeypatch):
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("fetchers.espn.async_sleep", fake_sleep)
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(_nba_scoreboard_url()).mock(
+            side_effect=[
+                Response(429, headers={"Retry-After": "3"}),
+                Response(200, json=espn_mock_data),
+            ]
+        )
+        result = await fetch_scoreboard("nba")
+        assert result == espn_mock_data
+    assert sleeps == [3.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_retries_on_503_with_exponential_backoff(espn_mock_data, monkeypatch):
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("fetchers.espn.async_sleep", fake_sleep)
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(_nba_scoreboard_url()).mock(
+            side_effect=[
+                Response(503),
+                Response(503),
+                Response(200, json=espn_mock_data),
+            ]
+        )
+        result = await fetch_scoreboard("nba")
+        assert result == espn_mock_data
+    assert sleeps == [2.0, 4.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_gives_up_after_max_attempts(monkeypatch):
+    async def fake_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("fetchers.espn.async_sleep", fake_sleep)
+
+    with respx.mock() as respx_mock:
+        route = respx_mock.get(_nba_scoreboard_url()).mock(return_value=Response(503))
+        with pytest.raises(httpx.HTTPStatusError):
+            await fetch_scoreboard("nba")
+        assert route.call_count == ESPN_MAX_ATTEMPTS
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_does_not_retry_client_errors():
+    with respx.mock() as respx_mock:
+        route = respx_mock.get(_nba_scoreboard_url()).mock(return_value=Response(404))
+        with pytest.raises(httpx.HTTPStatusError):
+            await fetch_scoreboard("nba")
+        assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_retries_on_transport_error(espn_mock_data, monkeypatch):
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("fetchers.espn.async_sleep", fake_sleep)
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(_nba_scoreboard_url()).mock(
+            side_effect=[
+                httpx.ConnectError("connection reset"),
+                Response(200, json=espn_mock_data),
+            ]
+        )
+        result = await fetch_scoreboard("nba")
+        assert result == espn_mock_data
+    assert sleeps == [2.0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_gives_up_after_transport_errors(monkeypatch):
+    async def fake_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("fetchers.espn.async_sleep", fake_sleep)
+
+    with respx.mock() as respx_mock:
+        route = respx_mock.get(_nba_scoreboard_url()).mock(side_effect=httpx.ConnectError("connection reset"))
+        with pytest.raises(httpx.ConnectError):
+            await fetch_scoreboard("nba")
+        assert route.call_count == ESPN_MAX_ATTEMPTS
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_passes_dates_query(espn_mock_data):
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(_nba_scoreboard_url(), params={"dates": "20260115"}).mock(
+            return_value=Response(200, json=espn_mock_data)
+        )
+        result = await fetch_scoreboard("nba", "20260115")
+        assert result == espn_mock_data
+
+
+@pytest.mark.asyncio
+async def test_fetch_scoreboard_fails_closed_when_attempts_are_zero(monkeypatch):
+    monkeypatch.setattr("fetchers.espn.ESPN_MAX_ATTEMPTS", 0)
+    with pytest.raises(RuntimeError, match="exhausted retries"):
+        await fetch_scoreboard("nba")
+
+
+@pytest.mark.asyncio
+async def test_async_sleep_delegates_to_asyncio(monkeypatch):
+    slept: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr("fetchers.espn.asyncio.sleep", fake_sleep)
+    from fetchers.espn import async_sleep
+
+    await async_sleep(0.25)
+    assert slept == [0.25]
 
 
 @pytest.mark.asyncio
