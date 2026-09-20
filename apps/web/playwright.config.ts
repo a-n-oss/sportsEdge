@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000';
+const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://127.0.0.1:3000';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -25,7 +25,12 @@ export default defineConfig({
   ],
   webServer: {
     command: 'pnpm dev',
-    url: 'http://localhost:3000',
+    url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
+    env: {
+      // Pin the Next server to the seeded local API. A stray API_URL pointing
+      // at Railway/prod would race Playwright against the live ESPN board.
+      API_URL: process.env.API_URL || 'http://127.0.0.1:8000/api/v1',
+    },
   },
 });

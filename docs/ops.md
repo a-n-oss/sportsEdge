@@ -33,6 +33,12 @@ That moves every current rating 25% toward 1500 and writes `rating_history` rows
 
 `apps/api/scripts/reset_synced_data.py` is the same class of destructive operation and is also blocked in production. After the namespaced team-id fix, prefer `POST /api/v1/admin/reset-and-refresh` with `X-Admin-Token` (once `ADMIN_TOKEN` is set in Railway).
 
+## `SKIP_ESPN_SCHEDULER` freezes seed data for e2e
+
+GitHub Actions Playwright seeds the database, then boots the API. The API's 20-minute ESPN cron (and its 120s misfire grace) can otherwise scrape the live scoreboard mid-suite: team `name` overwrites (`Boston Celtics` → ESPN `Celtics`) and today's slate crowds seed GSW off the dashboard.
+
+CI sets `SKIP_ESPN_SCHEDULER=1` on the e2e API process only. Do **not** set this on Railway.
+
 ## `SKIP_MIGRATIONS` can silently skip schema updates
 
 On API boot, `main.py` runs `alembic upgrade head` unless `SKIP_MIGRATIONS=1`.

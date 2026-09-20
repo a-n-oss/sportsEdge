@@ -55,6 +55,16 @@ def should_skip_startup_migrations(environ: Mapping[str, str] | None = None) -> 
     return _environ(environ).get("SKIP_MIGRATIONS") == "1"
 
 
+def should_skip_espn_scheduler(environ: Mapping[str, str] | None = None) -> bool:
+    """Return True only when SKIP_ESPN_SCHEDULER is the string '1'.
+
+    Playwright e2e and other seed-locked runs set this so the 20-minute ESPN
+    cron cannot overwrite deterministic fixtures (GSW / Boston Celtics).
+    Production Railway must not set this flag.
+    """
+    return _environ(environ).get("SKIP_ESPN_SCHEDULER") == "1"
+
+
 def resolve_admin_token(environ: Mapping[str, str] | None = None) -> str:
     """Return ADMIN_TOKEN, using a documented local default only outside production."""
     env = _environ(environ)

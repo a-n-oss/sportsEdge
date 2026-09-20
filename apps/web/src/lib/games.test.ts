@@ -13,6 +13,7 @@ import {
   predictionEmptyCopy,
   recentForm,
   sortCompleted,
+  sortUpcoming,
   statusPillText,
 } from "./games"
 
@@ -56,6 +57,20 @@ describe("dedupeMirrorMatchups", () => {
     ]
 
     expect(dedupeMirrorMatchups(games)).toHaveLength(2)
+  })
+})
+
+describe("sortUpcoming", () => {
+  it("keeps a seed-style future STATUS_SCHEDULED game on the board", () => {
+    const seeded = game({
+      id: 102,
+      home_team_id: 9,
+      away_team_id: 13,
+      status: "STATUS_SCHEDULED",
+      date: "2099-01-02T00:00:00Z",
+    })
+
+    expect(sortUpcoming([seeded]).map((g) => g.id)).toEqual([102])
   })
 })
 
