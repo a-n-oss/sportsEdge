@@ -35,6 +35,11 @@ async def get_games(
     league: str | None = Query(default=None),
     status: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
+    has_prediction: bool = Query(
+        default=False,
+        description="If true, only games with a stored pre-game prediction. "
+        "History/accuracy should set this so unpredicted finals cannot crowd out the limit.",
+    ),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     stmt = (
@@ -56,6 +61,8 @@ async def get_games(
             stmt = stmt.where(Game.status == statuses[0])
         elif statuses:
             stmt = stmt.where(Game.status.in_(statuses))
+    if has_prediction:
+        stmt = stmt.where(Game.prediction.has())
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -246,12 +253,11 @@ async def get_accuracy(db: AsyncSession = Depends(get_db)):  # noqa: B008
         .where(Game.status.in_(("STATUS_FINAL", "completed")))
         .where(Game.home_score.is_not(None))
         .where(Game.away_score.is_not(None))
+        .where(Game.prediction.has())
     )
     result = await db.execute(stmt)
     games = result.scalars().all()
-    # Only games that have predictions
-    games_with_pred = [g for g in games if g.prediction is not None]
-    return _compute_accuracy(games_with_pred)
+    return _compute_accuracy(list(games))
 
 
 @router.post("/admin/refresh")

@@ -18,6 +18,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     league,
     status: COMPLETED_STATUS_QUERY,
     limit: 200,
+    hasPrediction: true,
   }).catch(() => [])
 
   const results = sortCompleted(games)

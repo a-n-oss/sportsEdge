@@ -388,3 +388,102 @@ async def test_admin_reset_and_refresh_still_works(async_client: AsyncClient, ge
     assert response.json()["status"] == "reset_and_refresh_completed"
     leftover = (await get_db_session.execute(select(Team).where(Team.id == 99))).scalar_one_or_none()
     assert leftover is None
+
+
+@pytest.mark.asyncio
+async def test_games_has_prediction_keeps_predicted_finals_inside_limit(
+    async_client: AsyncClient, get_db_session: AsyncSession
+):
+    """History/accuracy used limit=N of mixed finals; unpredicted rows crowded out predicted ones."""
+    now = datetime.now(UTC)
+    get_db_session.add_all(
+        [
+            Team(id=1, league="nba", name="Home", abbreviation="HOM"),
+            Team(id=2, league="nba", name="Away", abbreviation="AWY"),
+        ]
+    )
+    await get_db_session.commit()
+
+    predicted = Game(
+        id=1,
+        league="nba",
+        date=now - timedelta(days=30),
+        status="STATUS_FINAL",
+        home_team_id=1,
+        away_team_id=2,
+        home_score=100,
+        away_score=90,
+    )
+    get_db_session.add(predicted)
+    await get_db_session.commit()
+    get_db_session.add(Prediction(game_id=1, home_win_prob=0.6, away_win_prob=0.4, draw_prob=None))
+
+    get_db_session.add_all(
+        [
+            Game(
+                id=i,
+                league="nba",
+                date=now - timedelta(days=i - 1),
+                status="STATUS_FINAL",
+                home_team_id=1,
+                away_team_id=2,
+                home_score=110,
+                away_score=100,
+            )
+            for i in range(2, 12)
+        ]
+    )
+    await get_db_session.commit()
+
+    clogged = await async_client.get("/api/v1/games?status=STATUS_FINAL&limit=5")
+    assert clogged.status_code == 200
+    assert 1 not in {g["id"] for g in clogged.json()}
+
+    filtered = await async_client.get("/api/v1/games?status=STATUS_FINAL,completed&limit=5&has_prediction=true")
+    assert filtered.status_code == 200
+    ids = [g["id"] for g in filtered.json()]
+    assert ids == [1]
+    assert filtered.json()[0]["prediction"]["home_win_prob"] == pytest.approx(0.6)
+
+
+@pytest.mark.asyncio
+async def test_accuracy_sample_excludes_unpredicted_finals(async_client: AsyncClient, get_db_session: AsyncSession):
+    now = datetime.now(UTC)
+    get_db_session.add_all(
+        [
+            Team(id=1, league="nba", name="Home", abbreviation="HOM"),
+            Team(id=2, league="nba", name="Away", abbreviation="AWY"),
+        ]
+    )
+    await get_db_session.commit()
+
+    predicted = Game(
+        id=1,
+        league="nba",
+        date=now - timedelta(days=3),
+        status="STATUS_FINAL",
+        home_team_id=1,
+        away_team_id=2,
+        home_score=100,
+        away_score=90,
+    )
+    unpredicted = Game(
+        id=2,
+        league="nba",
+        date=now - timedelta(days=1),
+        status="STATUS_FINAL",
+        home_team_id=1,
+        away_team_id=2,
+        home_score=80,
+        away_score=110,
+    )
+    get_db_session.add_all([predicted, unpredicted])
+    await get_db_session.commit()
+    get_db_session.add(Prediction(game_id=1, home_win_prob=0.6, away_win_prob=0.4, draw_prob=None))
+    await get_db_session.commit()
+
+    response = await async_client.get("/api/v1/accuracy")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sample_size"] == 1
+    assert body["brier_score"] == pytest.approx(0.16)
