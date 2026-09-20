@@ -2,14 +2,16 @@ import type { ReactNode } from "react"
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import HistoryPage from "./page"
+import AccuracyPage from "./page"
 import { STUB_HEADER_NOTE } from "../../lib/league"
 
 const getLeagues = vi.fn()
+const getAccuracy = vi.fn()
 const getGamesForLeagues = vi.fn()
 
 vi.mock("@/lib/api", () => ({
   getLeagues: (...args: unknown[]) => getLeagues(...args),
+  getAccuracy: (...args: unknown[]) => getAccuracy(...args),
   getGamesForLeagues: (...args: unknown[]) => getGamesForLeagues(...args),
 }))
 
@@ -19,42 +21,51 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-describe("HistoryPage", () => {
+describe("AccuracyPage", () => {
   afterEach(() => {
     cleanup()
   })
 
   beforeEach(() => {
     getLeagues.mockReset()
+    getAccuracy.mockReset()
     getGamesForLeagues.mockReset()
     getLeagues.mockResolvedValue([
       { key: "nfl", ready: false },
       { key: "nba", ready: true },
     ])
+    getAccuracy.mockResolvedValue({ brier_score: 0.16, calibration: [], sample_size: 1 })
     getGamesForLeagues.mockResolvedValue([])
   })
 
-  it("queries only ready leagues for All", async () => {
-    render(await HistoryPage({ searchParams: Promise.resolve({}) }))
+  it("loads global accuracy for All and only queries ready leagues' games", async () => {
+    render(await AccuracyPage({ searchParams: Promise.resolve({}) }))
+    expect(getAccuracy).toHaveBeenCalledWith()
     expect(getGamesForLeagues).toHaveBeenCalledWith(["nba"], {
       status: "STATUS_FINAL,completed",
-      limit: 200,
+      limit: 100,
       hasPrediction: true,
     })
     expect(screen.queryByText(STUB_HEADER_NOTE)).toBeNull()
   })
 
-  it("shows the Limited header note for a stub chip", async () => {
-    render(await HistoryPage({ searchParams: Promise.resolve({ league: "nhl" }) }))
+  it("honors ?league= for accuracy and games, and notes Limited stubs", async () => {
+    render(await AccuracyPage({ searchParams: Promise.resolve({ league: "nhl" }) }))
+    expect(getAccuracy).toHaveBeenCalledWith({ league: "nhl" })
     expect(getGamesForLeagues).toHaveBeenCalledWith(["nhl"], {
       status: "STATUS_FINAL,completed",
-      limit: 200,
+      limit: 100,
       hasPrediction: true,
     })
     expect(screen.getByText(STUB_HEADER_NOTE)).toBeTruthy()
   })
 
-  it("lists predicted-then-final games", async () => {
+  it("renders Brier, calibration, and predicted-then-final rows", async () => {
+    getAccuracy.mockResolvedValue({
+      brier_score: 0.16,
+      calibration: [{ predicted: 0.6, actual: 1 }],
+      sample_size: 1,
+    })
     getGamesForLeagues.mockResolvedValue([
       {
         id: 101,
@@ -75,8 +86,9 @@ describe("HistoryPage", () => {
         },
       },
     ])
-    render(await HistoryPage({ searchParams: Promise.resolve({}) }))
+    render(await AccuracyPage({ searchParams: Promise.resolve({}) }))
+    expect(screen.getByText("0.160")).toBeTruthy()
+    expect(screen.getByText(/Pred 60%/)).toBeTruthy()
     expect(screen.getByText("Picks vs Outcomes")).toBeTruthy()
-    expect(screen.getByText(/n = 1/)).toBeTruthy()
   })
 })

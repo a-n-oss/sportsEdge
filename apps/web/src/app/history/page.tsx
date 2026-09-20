@@ -27,6 +27,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const games = await getGamesForLeagues(queryLeagues, {
     status: COMPLETED_STATUS_QUERY,
     limit: 200,
+    hasPrediction: true,
   })
   const stubSelected = !isSelectedLeagueReady(league, new Set(readyKeys))
 

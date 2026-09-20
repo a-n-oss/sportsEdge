@@ -8,11 +8,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 # Add the parent directory to sys.path to allow importing from the main app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.runtime import assert_not_production
 from db.models import Base, FetchRun, Game, Prediction, Rating, RatingHistory, Team
 from fetchers.espn import namespaced_team_id
 
 
 async def seed():
+    assert_not_production("drop_all and seed the database")
     database_url = os.environ.get(
         "DATABASE_URL", "postgresql+asyncpg://sportsedge:sportsedge_password@localhost:5432/sportsedge_db"
     )
