@@ -311,6 +311,9 @@ async def test_lifespan_kicks_off_boot_sync_on_railway(monkeypatch):
 
     async with lifespan(app):
         await async_sleep(0)
+        task = getattr(app.state, "boot_sync_task", None)
+        assert task is not None
+        assert not task.cancelled()
 
     assert boot == ["sync"]
 

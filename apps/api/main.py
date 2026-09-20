@@ -114,6 +114,7 @@ async def lifespan(app: FastAPI):
         logger.info("Database migrations complete.")
 
     scheduler = None
+    boot_sync_task = None
     if should_skip_espn_scheduler():
         # Seed-locked e2e: a misfired */20 cron would scrape ESPN and overwrite
         # GSW / Boston Celtics fixtures with the live board.
@@ -122,12 +123,16 @@ async def lifespan(app: FastAPI):
         scheduler = build_scheduler()
         scheduler.start()
 
-        # Kick off ESPN sync in the background so /health can pass during boot
+        # Kick off ESPN sync in the background so /health can pass during boot.
+        # Keep a strong reference — the event loop only weakly tracks tasks (python:S7502).
         if is_production_environment():
             logger.info("Production environment detected — scheduling initial data sync...")
-            asyncio.create_task(scheduled_fetch_games())
+            boot_sync_task = asyncio.create_task(scheduled_fetch_games())
+            app.state.boot_sync_task = boot_sync_task
 
     yield
+    if boot_sync_task is not None and not boot_sync_task.done():
+        boot_sync_task.cancel()
     if scheduler is not None:
         scheduler.shutdown()
 

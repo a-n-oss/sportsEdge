@@ -191,6 +191,45 @@ def test_dockerfile_cmd_uses_dual_stack_start_py():
     assert 'CMD ["python", "start.py"]' in contents
 
 
+def _dockerfile_text() -> str:
+    return (Path(__file__).resolve().parents[1] / "Dockerfile").read_text(encoding="utf-8")
+
+
+def test_dockerfile_does_not_recursively_copy_the_build_context():
+    """docker:S6470 — COPY/ADD of '.' can bake secrets and .git into the image."""
+    for raw in _dockerfile_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("COPY ", "ADD ")):
+            args = line.split()[1:]
+            while args and args[0].startswith("--"):
+                args = args[1:]
+            sources = args[:-1]
+            assert "." not in sources, f"recursive context copy is not allowed: {line}"
+            assert "./" not in sources, f"recursive context copy is not allowed: {line}"
+
+
+def test_dockerfile_drops_privileges_to_a_non_root_user():
+    """docker:S6471 — python images default to root."""
+    users = [
+        line.strip().split(maxsplit=1)[1]
+        for line in _dockerfile_text().splitlines()
+        if line.strip().startswith("USER ")
+    ]
+    assert users, "Dockerfile must switch to a non-root USER"
+    assert users[-1] not in {"root", "0", "0:0"}
+
+
+def test_dockerfile_installs_python_deps_from_a_locked_binary_set():
+    """docker:S8544 + docker:S8541 — lock resolved versions and skip sdist setup scripts."""
+    contents = _dockerfile_text()
+    uses_uv_lock = "uv.lock" in contents and ("--locked" in contents or "--frozen" in contents)
+    uses_pip_hashes = "--require-hashes" in contents
+    assert uses_uv_lock or uses_pip_hashes
+    assert "--no-build" in contents or "--only-binary" in contents
+
+
 def _clear_production_signals(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "RAILWAY_ENVIRONMENT",
