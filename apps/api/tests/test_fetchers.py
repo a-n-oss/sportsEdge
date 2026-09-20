@@ -625,6 +625,18 @@ def test_parse_scoreboard_normalizes_seed_style_status_names():
     assert games[0]["status"] == "STATUS_FINAL"
 
 
+def test_parse_scoreboard_normalizes_soccer_full_time_status():
+    arsenal = {"id": "1", "name": "Arsenal", "abbreviation": "ARS"}
+    chelsea = {"id": "2", "name": "Chelsea", "abbreviation": "CHE"}
+    payload = {
+        "events": [
+            _scoreboard_event("100", "2024-08-17T15:00Z", arsenal, chelsea, "STATUS_FULL_TIME", 2, 1),
+        ]
+    }
+    _, games = parse_scoreboard("epl", payload)
+    assert games[0]["status"] == "STATUS_FINAL"
+
+
 @pytest.mark.asyncio
 async def test_sync_skips_incoming_mirror_of_existing_game(get_db_session: AsyncSession):
     league = "nba"

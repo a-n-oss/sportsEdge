@@ -3,6 +3,8 @@ from collections.abc import Sequence
 STATUS_SCHEDULED = "STATUS_SCHEDULED"
 STATUS_IN_PROGRESS = "STATUS_IN_PROGRESS"
 STATUS_FINAL = "STATUS_FINAL"
+STATUS_FULL_TIME = "STATUS_FULL_TIME"
+STATUS_FT = "STATUS_FT"
 
 _CANONICAL = {
     "scheduled": STATUS_SCHEDULED,
@@ -11,23 +13,29 @@ _CANONICAL = {
     STATUS_IN_PROGRESS: STATUS_IN_PROGRESS,
     "completed": STATUS_FINAL,
     STATUS_FINAL: STATUS_FINAL,
+    STATUS_FULL_TIME: STATUS_FINAL,
+    STATUS_FT: STATUS_FINAL,
 }
+
+_COMPLETED_ALIASES = (STATUS_FINAL, "completed", STATUS_FULL_TIME, STATUS_FT)
 
 _ALIAS_GROUPS: dict[str, tuple[str, ...]] = {
     STATUS_SCHEDULED: (STATUS_SCHEDULED, "scheduled"),
     "scheduled": (STATUS_SCHEDULED, "scheduled"),
     STATUS_IN_PROGRESS: (STATUS_IN_PROGRESS, "in_progress"),
     "in_progress": (STATUS_IN_PROGRESS, "in_progress"),
-    STATUS_FINAL: (STATUS_FINAL, "completed"),
-    "completed": (STATUS_FINAL, "completed"),
+    STATUS_FINAL: _COMPLETED_ALIASES,
+    "completed": _COMPLETED_ALIASES,
+    STATUS_FULL_TIME: _COMPLETED_ALIASES,
+    STATUS_FT: _COMPLETED_ALIASES,
 }
 
-COMPLETED_STATUSES = _ALIAS_GROUPS[STATUS_FINAL]
+COMPLETED_STATUSES = _COMPLETED_ALIASES
 SCHEDULED_STATUSES = _ALIAS_GROUPS[STATUS_SCHEDULED]
 
 
 def normalize_game_status(status: str) -> str:
-    """Map seed labels onto ESPN STATUS_* names; leave unknown values unchanged."""
+    """Map seed labels and soccer full-time aliases onto ESPN STATUS_* names."""
     return _CANONICAL.get(status, status)
 
 

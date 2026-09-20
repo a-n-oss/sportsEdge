@@ -27,11 +27,18 @@ async def _seed_nba_matchup(session: AsyncSession, home_elo: float = 1500.0, awa
     await session.commit()
 
 
-def _game(*, game_id: int, status: str, days: int = 1, scores: tuple[int, int] | None = None) -> Game:
+def _game(
+    *,
+    game_id: int,
+    status: str,
+    days: int = 1,
+    scores: tuple[int, int] | None = None,
+    league: str = "nba",
+) -> Game:
     home_score, away_score = scores if scores is not None else (None, None)
     return Game(
         id=game_id,
-        league="nba",
+        league=league,
         date=datetime.now(UTC) + timedelta(days=days),
         status=status,
         home_team_id=1,
@@ -185,6 +192,38 @@ async def test_pipeline_processes_seed_completed_status(get_db_session: AsyncSes
 
     history = (await get_db_session.execute(select(RatingHistory))).scalars().all()
     assert {row.game_id for row in history} == {17}
+    home = await get_db_session.get(Rating, 1)
+    away = await get_db_session.get(Rating, 2)
+    assert home is not None
+    assert away is not None
+    assert home.elo_rating > 1500
+    assert away.elo_rating < 1500
+
+
+@pytest.mark.asyncio
+async def test_pipeline_processes_epl_full_time_status(get_db_session: AsyncSession):
+    """Soccer scoreboards finish as STATUS_FULL_TIME, not STATUS_FINAL."""
+    get_db_session.add_all(
+        [
+            Team(id=1, league="epl", name="Home", abbreviation="HOM"),
+            Team(id=2, league="epl", name="Away", abbreviation="AWY"),
+        ]
+    )
+    await get_db_session.commit()
+    now = datetime.now(UTC)
+    get_db_session.add_all(
+        [
+            Rating(team_id=1, elo_rating=1500.0, last_updated=now),
+            Rating(team_id=2, elo_rating=1500.0, last_updated=now),
+        ]
+    )
+    get_db_session.add(_game(game_id=18, status="STATUS_FULL_TIME", days=-1, scores=(2, 0), league="epl"))
+    await get_db_session.commit()
+
+    await run_elo_pipeline(get_db_session, "epl")
+
+    history = (await get_db_session.execute(select(RatingHistory))).scalars().all()
+    assert {row.game_id for row in history} == {18}
     home = await get_db_session.get(Rating, 1)
     away = await get_db_session.get(Rating, 2)
     assert home is not None
