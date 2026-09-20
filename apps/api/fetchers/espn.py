@@ -1,8 +1,10 @@
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import httpx
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,7 @@ from db.models import FetchRun, Game, Team
 from engine.process import run_elo_pipeline
 
 from .client import get_client
+from .schedule import ESPN_MAX_ATTEMPTS, parse_retry_after, retry_delay_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,14 @@ def namespaced_team_id(league: str, espn_team_id: int) -> int:
     except KeyError as exc:
         raise ValueError(f"Unsupported league: {league}") from exc
     return offset + espn_team_id
+
+
+async def async_sleep(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+def _retryable_status(status_code: int) -> bool:
+    return status_code == 429 or status_code >= 500
 
 
 def _season_bounds(league: str, as_of: date) -> tuple[date, date]:
@@ -188,10 +199,45 @@ async def fetch_scoreboard(league: str, board_date: str | None = None) -> dict[s
     if board_date:
         params["dates"] = board_date
 
-    async with get_client() as client:
-        response = await client.get(url, params=params)
+    for attempt in range(ESPN_MAX_ATTEMPTS):
+        try:
+            async with get_client() as client:
+                response = await client.get(url, params=params)
+        except httpx.TransportError as exc:
+            if attempt >= ESPN_MAX_ATTEMPTS - 1:
+                raise
+            delay = retry_delay_seconds(attempt)
+            logger.warning(
+                "ESPN transport error for %s (attempt %s/%s): %s; retrying in %ss",
+                league,
+                attempt + 1,
+                ESPN_MAX_ATTEMPTS,
+                exc,
+                delay,
+            )
+            await async_sleep(delay)
+            continue
+
+        if _retryable_status(response.status_code) and attempt < ESPN_MAX_ATTEMPTS - 1:
+            delay = retry_delay_seconds(
+                attempt,
+                retry_after=parse_retry_after(response.headers.get("Retry-After")),
+            )
+            logger.warning(
+                "ESPN %s for %s (attempt %s/%s); retrying in %ss",
+                response.status_code,
+                league,
+                attempt + 1,
+                ESPN_MAX_ATTEMPTS,
+                delay,
+            )
+            await async_sleep(delay)
+            continue
+
         response.raise_for_status()
         return response.json()
+
+    raise RuntimeError("ESPN scoreboard fetch exhausted retries")
 
 
 def _competitor_score(competitor: dict[str, Any]) -> int | None:

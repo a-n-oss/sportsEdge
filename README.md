@@ -7,7 +7,7 @@ Built entirely with modern, agentic workflows, SportsEdge consists of a rigorous
 ## 🌟 Key Features
 
 - **Algorithmic Elo Engine**: A custom Python engine that processes zero-sum rating exchanges with sport-specific dynamic K-factors, MOV multipliers, and season regressions.
-- **Automated Data Fetching**: Robust backend fetchers that hit ESPN APIs to synchronize live scores and upcoming matchups.
+- **Automated Data Fetching**: Robust backend fetchers that hit ESPN APIs to synchronize live scores and upcoming matchups. The API scheduler refreshes the live scoreboard **every 20 minutes from 08:00–03:59 America/New_York** (typical multi-league slate; quiet hours 04:00–07:59 ET) and still runs a **daily full pass at 08:00 UTC** that also re-fetches yesterday so late games that rolled off ESPN's live board land `STATUS_FINAL` the night of the game. `/api/v1/meta/last-refresh` surfaces the latest `FetchRun`.
 - **Predictive Odds Generation**: Converts raw Elo differentials into accurate Win/Loss/Draw probabilities (including specialized 3-way Poisson-adjacent logic for soccer).
 - **Stunning Frontend UI**: A dark-themed, glassmorphic Next.js dashboard featuring win-probability bars and historical Elo graphs using `recharts`.
 - **Bulletproof Reliability**: Enforced by a 90%+ local coverage gate, SonarQube static analysis, comprehensive Playwright end-to-end smoke testing, and strict Zod API boundary validation.
