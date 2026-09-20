@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.runtime import assert_not_production
 from fetchers.espn import LEAGUE_MAP, sync_games
 
 TABLES_IN_FK_ORDER = (
@@ -34,6 +35,7 @@ TABLES_IN_FK_ORDER = (
 
 
 async def reset_synced_data(*, refresh: bool) -> None:
+    assert_not_production("truncate synced sports data")
     database_url = os.environ.get(
         "DATABASE_URL", "postgresql+asyncpg://sportsedge:sportsedge_password@localhost:5432/sportsedge_db"
     )
