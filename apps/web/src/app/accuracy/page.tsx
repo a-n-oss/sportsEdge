@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 export default async function AccuracyPage() {
   const [accuracy, games] = await Promise.all([
     getAccuracy().catch(() => null),
-    getGames({ status: COMPLETED_STATUS_QUERY, limit: 100 }).catch(() => []),
+    getGames({ status: COMPLETED_STATUS_QUERY, limit: 100, hasPrediction: true }).catch(() => []),
   ])
 
   const results = sortCompleted(games).slice(0, 20)
