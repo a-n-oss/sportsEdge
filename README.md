@@ -54,7 +54,7 @@ Run the database migrations to set up your tables:
 uv run alembic upgrade head
 ```
 
-Optionally, seed the database with deterministic test data (this is useful if you don't want to wait for live ESPN fetchers to populate the database):
+Optionally, seed the database with deterministic test data (this is useful if you don't want to wait for live ESPN fetchers to populate the database). `seed.py` runs `drop_all` and **refuses to run when a production signal such as `RAILWAY_ENVIRONMENT` is set** — it is local-only:
 ```bash
 uv run python scripts/seed.py
 ```
@@ -80,7 +80,9 @@ The frontend application is now running at `http://localhost:3000`.
 
 ## 🤖 Administrative Tasks
 
-Admin routes are protected by the `X-Admin-Token` header (`ADMIN_TOKEN` in `.env`; compose default is `secret_admin_token`).
+Admin routes authenticate with the **`X-Admin-Token`** header (not `Authorization: Bearer`). Locally, docker-compose sets `ADMIN_TOKEN=secret_admin_token`. If `ADMIN_TOKEN` is unset in a non-production environment, the API uses the documented default `development_token`. In production (`RAILWAY_ENVIRONMENT` or similar), a real non-default `ADMIN_TOKEN` is required.
+
+See [docs/ops.md](docs/ops.md) for production token requirements, seed/wipe guards, and `SKIP_MIGRATIONS` risk.
 
 **Daily refresh** (full roster + today's scoreboard + Elo, all leagues):
 ```bash
@@ -115,5 +117,10 @@ pnpm exec playwright test
 
 ## ☁️ Deployment
 
-- **Backend**: Configured for Railway deployment via `railway.json` using Nixpacks.
-- **Frontend**: Configured for Vercel deployment via `vercel.json`.
+Both the API and the Next.js frontend deploy on **Railway**. Only the frontend is public; the API and Postgres stay on private/internal networking.
+
+- **API**: `railway.json` — Nixpacks start command is `python start.py` (dual-stack bind). The `apps/api/Dockerfile` `CMD` matches that entrypoint if a Docker build is used.
+- **Web**: `apps/web/railway.toml`.
+- Root `vercel.json` was leftover Create-Next-App / Vercel scaffolding and has been removed; do not treat Vercel as the production deploy path.
+
+Ops details (admin token, seed safety, `SKIP_MIGRATIONS`): [docs/ops.md](docs/ops.md).
