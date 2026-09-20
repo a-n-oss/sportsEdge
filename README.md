@@ -101,7 +101,7 @@ Failed league syncs write `FetchRun.status="error"` (they no longer record a fal
 
 ## 🧪 Testing and Verification
 
-The repository enforces extremely strict CI quality gates.
+The repository enforces extremely strict CI quality gates. **CI matches verify.sh**: GitHub Actions runs the same ruff (check + format), mypy, pytest `--cov-fail-under=85`, ESLint, `tsc --noEmit`, and Vitest gates as `./scripts/verify.sh`. CI additionally runs Playwright e2e and fails the workflow if the SonarQube quality gate does not pass.
 
 **Local Shell Verification (Lint + Types + Tests):**
 ```bash

@@ -47,12 +47,20 @@ jobs:
       working-directory: ./apps/api
       run: uv run ruff check .
 
+    - name: Run Ruff Format
+      working-directory: ./apps/api
+      run: uv run ruff format --check .
+
+    - name: Run Mypy
+      working-directory: ./apps/api
+      run: uv run mypy .
+
     - name: Run Pytest
       working-directory: ./apps/api
       env:
         DATABASE_URL: postgresql+asyncpg://sportsedge:sportsedge_password@localhost:5432/sportsedge_db
       run: |
-        uv run pytest --cov=. --cov-report=xml
+        uv run pytest --cov=. --cov-fail-under=85 --cov-report=xml
         # Rewrite Cobertura <source> to repo root and prefix filenames with apps/api/
         # so Sonar resolves apps/api/foo.py (inline sed on main was the same intent).
         uv run python -m core.cobertura coverage.xml "${{ github.workspace }}"
@@ -87,11 +95,11 @@ jobs:
 
     - name: Run Type Check
       working-directory: ./apps/web
-      run: pnpm tsc --noEmit
+      run: pnpm exec tsc --noEmit
 
     - name: Run Vitest
       working-directory: ./apps/web
-      run: pnpm test
+      run: pnpm run test
 
     - name: Upload Frontend Coverage
       uses: actions/upload-artifact@v7
@@ -193,5 +201,12 @@ jobs:
         path: apps/web/coverage
     - name: SonarQube Scan
       uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: SonarQube Quality Gate
+      uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa
+      with:
+        pollingTimeoutSec: 300
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
