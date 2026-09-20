@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi.testclient import TestClient
 
+from core.runtime import UnsafeAdminTokenError
 from fetchers.espn import LEAGUE_MAP
 from fetchers.schedule import (
     DAILY_FULL_PASS_JOB_ID,
@@ -271,6 +272,9 @@ async def test_lifespan_runs_migrations_when_not_skipped(monkeypatch):
 async def test_lifespan_kicks_off_boot_sync_on_railway(monkeypatch):
     monkeypatch.setenv("SKIP_MIGRATIONS", "1")
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    # Prod hardening refuses the documented local default; boot-sync still runs
+    # when a real token is configured.
+    monkeypatch.setenv("ADMIN_TOKEN", "railway-real-token")
     boot: list[str] = []
 
     async def fake_sync(*args: object, **kwargs: object) -> None:
@@ -284,3 +288,15 @@ async def test_lifespan_kicks_off_boot_sync_on_railway(monkeypatch):
         await async_sleep(0)
 
     assert boot == ["sync"]
+
+
+@pytest.mark.asyncio
+async def test_lifespan_refuses_production_default_admin_token(monkeypatch):
+    monkeypatch.setenv("SKIP_MIGRATIONS", "1")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.setattr("main.build_scheduler", lambda: _FakeScheduler())
+
+    with pytest.raises(UnsafeAdminTokenError, match="ADMIN_TOKEN"):
+        async with lifespan(app):
+            pass

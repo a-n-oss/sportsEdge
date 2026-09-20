@@ -53,6 +53,8 @@ jobs:
         DATABASE_URL: postgresql+asyncpg://sportsedge:sportsedge_password@localhost:5432/sportsedge_db
       run: |
         uv run pytest --cov=. --cov-report=xml
+        # Rewrite Cobertura <source> to repo root and prefix filenames with apps/api/
+        # so Sonar resolves apps/api/foo.py (inline sed on main was the same intent).
         uv run python -m core.cobertura coverage.xml "${{ github.workspace }}"
 
     - name: Upload Backend Coverage

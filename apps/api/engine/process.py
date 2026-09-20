@@ -12,6 +12,11 @@ from engine.elo import EloEngine
 
 logger = logging.getLogger(__name__)
 
+# Predictions are written only while a game is still pre-tip. ESPN uses
+# STATUS_SCHEDULED; seed/dev rows may use "scheduled". Never invent a pick
+# for a game first seen already in-progress or final.
+PREDICTION_ELIGIBLE_STATUSES = ("STATUS_SCHEDULED", "scheduled")
+
 
 async def ensure_ratings(session: AsyncSession, league: str) -> None:
     """Ensure all teams in the league have an initial rating of 1500."""
@@ -99,10 +104,14 @@ async def update_predictions(session: AsyncSession, league: str) -> None:
     """Generate or update predictions for scheduled games only.
 
     Accuracy/history require a scheduled→final cycle: we never invent
-    retrospective predictions for games first seen already STATUS_FINAL.
-    Existing prediction rows are left intact when status flips to final.
+    retrospective predictions for games first seen already STATUS_FINAL
+    or in-progress. Existing prediction rows are left intact once status
+    leaves the scheduled set (Elo moves can still refresh remaining
+    scheduled games).
     """
-    result = await session.execute(select(Game).where(Game.league == league, Game.status == "STATUS_SCHEDULED"))
+    result = await session.execute(
+        select(Game).where(Game.league == league, Game.status.in_(PREDICTION_ELIGIBLE_STATUSES))
+    )
     scheduled_games = result.scalars().all()
 
     if not scheduled_games:
