@@ -80,11 +80,22 @@ The frontend application is now running at `http://localhost:3000`.
 
 ## 🤖 Administrative Tasks
 
-To trigger a live synchronization of upcoming and completed games from the ESPN network, you can hit the refresh endpoint using your configured Admin Token (from your `.env` file):
+Admin routes are protected by the `X-Admin-Token` header (`ADMIN_TOKEN` in `.env`; compose default is `secret_admin_token`).
+
+**Daily refresh** (full roster + today's scoreboard + Elo, all leagues):
 ```bash
 curl -X POST http://localhost:8000/api/v1/admin/refresh \
-  -H "Authorization: Bearer secret_admin_token"
+  -H "X-Admin-Token: secret_admin_token"
 ```
+
+**Historical backfill** (full roster, then each day's ESPN scoreboard in chronological order, then Elo). Omit `from`/`to` to use the current season for that league (clipped to today). Prefer one league at a time — a season is hundreds of ESPN calls.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/admin/backfill?league=nba&from=2025-10-01&to=2026-04-15" \
+  -H "X-Admin-Token: secret_admin_token"
+```
+
+Failed league syncs write `FetchRun.status="error"` (they no longer record a false success). After merging this, validate backfill on staging, then give CoS/Louis a heads-up before production `POST /api/v1/admin/reset-and-refresh`.
 
 ## 🧪 Testing and Verification
 
