@@ -11,6 +11,7 @@ from db.models import FetchRun, Game, Prediction, RatingHistory, Team
 from fetchers.espn import (
     LEAGUE_MAP,
     backfill_games,
+    current_season_start,
     current_season_window,
     fetch_scoreboard,
     namespaced_team_id,
@@ -540,6 +541,8 @@ def test_current_season_window_uses_in_progress_or_last_completed_season():
     assert current_season_window("nfl", as_of) == (date(2026, 9, 1), as_of)
     assert current_season_window("mlb", as_of) == (date(2026, 3, 20), as_of)
     assert current_season_window("epl", as_of) == (date(2026, 8, 1), as_of)
+    assert current_season_start("nba", as_of) == date(2025, 10, 1)
+    assert current_season_start("nfl", as_of) == date(2026, 9, 1)
 
 
 def test_current_season_window_clips_open_season_to_as_of():
@@ -595,3 +598,51 @@ def test_parse_scoreboard_skips_events_missing_a_side():
     teams, games = parse_scoreboard("nba", payload)
     assert teams == []
     assert games == []
+
+
+def test_parse_scoreboard_drops_reversed_mirror_matchups():
+    celtics = {"id": "1", "name": "Celtics", "abbreviation": "BOS"}
+    heat = {"id": "2", "name": "Heat", "abbreviation": "MIA"}
+    payload = {
+        "events": [
+            _scoreboard_event("100", "2024-11-20T20:30Z", celtics, heat),
+            _scoreboard_event("101", "2024-11-20T20:30Z", heat, celtics),
+        ]
+    }
+    _, games = parse_scoreboard("nba", payload)
+    assert [g["id"] for g in games] == [100]
+
+
+def test_parse_scoreboard_normalizes_seed_style_status_names():
+    celtics = {"id": "1", "name": "Celtics", "abbreviation": "BOS"}
+    heat = {"id": "2", "name": "Heat", "abbreviation": "MIA"}
+    payload = {
+        "events": [
+            _scoreboard_event("100", "2024-11-20T20:30Z", celtics, heat, "completed", 110, 105),
+        ]
+    }
+    _, games = parse_scoreboard("nba", payload)
+    assert games[0]["status"] == "STATUS_FINAL"
+
+
+@pytest.mark.asyncio
+async def test_sync_skips_incoming_mirror_of_existing_game(get_db_session: AsyncSession):
+    league = "nba"
+    celtics = {"id": "1", "name": "Celtics", "abbreviation": "BOS"}
+    heat = {"id": "2", "name": "Heat", "abbreviation": "MIA"}
+    first = {"events": [_scoreboard_event("100", "2024-11-20T20:30Z", celtics, heat)]}
+    mirror = {"events": [_scoreboard_event("101", "2024-11-20T20:30Z", heat, celtics)]}
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        _mock_league_espn(respx_mock, league, first)
+        await sync_games(league, get_db_session)
+
+        scoreboard_url, teams_url = _espn_urls(league)
+        respx_mock.get(teams_url).mock(return_value=Response(200, json=EMPTY_ROSTER))
+        respx_mock.get(scoreboard_url).mock(return_value=Response(200, json=mirror))
+        await sync_games(league, get_db_session)
+
+    games = (await get_db_session.execute(select(Game))).scalars().all()
+    assert [g.id for g in games] == [100]
+    assert games[0].home_team_id == namespaced_team_id("nba", 1)
+    assert games[0].away_team_id == namespaced_team_id("nba", 2)

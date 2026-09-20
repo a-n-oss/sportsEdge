@@ -9,13 +9,14 @@ from sqlalchemy.orm import selectinload
 
 from db.models import Game, Prediction, Rating, RatingHistory, Team
 from engine.elo import EloEngine
+from engine.game_status import COMPLETED_STATUSES, SCHEDULED_STATUSES
 
 logger = logging.getLogger(__name__)
 
 # Predictions are written only while a game is still pre-tip. ESPN uses
 # STATUS_SCHEDULED; seed/dev rows may use "scheduled". Never invent a pick
 # for a game first seen already in-progress or final.
-PREDICTION_ELIGIBLE_STATUSES = ("STATUS_SCHEDULED", "scheduled")
+PREDICTION_ELIGIBLE_STATUSES = SCHEDULED_STATUSES
 
 
 async def ensure_ratings(session: AsyncSession, league: str) -> None:
@@ -46,7 +47,7 @@ async def process_completed_games(session: AsyncSession, league: str) -> None:
     """Process Elo updates for completed games that haven't been processed yet."""
     # Find all completed games for the league
     result = await session.execute(
-        select(Game).where(Game.league == league, Game.status == "STATUS_FINAL").order_by(Game.date)
+        select(Game).where(Game.league == league, Game.status.in_(COMPLETED_STATUSES)).order_by(Game.date)
     )
     games: Sequence[Game] = result.scalars().all()
 

@@ -11,6 +11,9 @@ from api.deps import verify_admin
 from api.league_status import league_status_rows
 from db.models import FetchRun, Game, Rating, RatingHistory, Team
 from db.session import get_db
+from engine.game_status import COMPLETED_STATUSES, expand_status_filter
+from engine.season import apply_season_regression
+from engine.standings import standing_trend
 from fetchers.espn import LEAGUE_MAP, backfill_games, resolve_backfill_window, sync_games
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
@@ -56,8 +59,7 @@ async def get_games(
     if league:
         stmt = stmt.where(Game.league == league.lower())
     if status:
-        # Comma-separated allows STATUS_FINAL + seed "completed" in one request.
-        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        statuses = expand_status_filter([s.strip() for s in status.split(",") if s.strip()])
         if len(statuses) == 1:
             stmt = stmt.where(Game.status == statuses[0])
         elif statuses:
@@ -135,18 +137,16 @@ async def get_league_standings(league: str, db: AsyncSession = Depends(get_db)):
 
     standings: list[dict] = []
     if rows:
+        history_by_team = await _elo_history_by_team(db, [team.id for team, _, _ in rows])
         for rank, (team, elo, last_updated) in enumerate(rows, start=1):
             standings.append(
-                {
-                    "rank": rank,
-                    "team_id": team.id,
-                    "league": team.league,
-                    "name": team.name,
-                    "abbreviation": team.abbreviation,
-                    "elo_rating": elo,
-                    "last_updated": last_updated.isoformat() if last_updated else None,
-                    "trend": None,
-                }
+                _standing_row(
+                    rank=rank,
+                    team=team,
+                    elo_rating=elo,
+                    last_updated=last_updated.isoformat() if last_updated else None,
+                    trend=standing_trend(elo, history_by_team.get(team.id, [])),
+                )
             )
         return standings
 
@@ -171,21 +171,54 @@ async def get_league_standings(league: str, db: AsyncSession = Depends(get_db)):
     teams = {t.id: t for t in teams_result.scalars().all()}
 
     ordered = sorted(latest_by_team.values(), key=lambda r: r.elo_rating, reverse=True)
+    history_by_team = await _elo_history_by_team(db, team_ids)
     for rank, rh in enumerate(ordered, start=1):
         team = teams[rh.team_id]
         standings.append(
-            {
-                "rank": rank,
-                "team_id": team.id,
-                "league": team.league,
-                "name": team.name,
-                "abbreviation": team.abbreviation,
-                "elo_rating": rh.elo_rating,
-                "last_updated": rh.date.isoformat() if rh.date else None,
-                "trend": None,
-            }
+            _standing_row(
+                rank=rank,
+                team=team,
+                elo_rating=rh.elo_rating,
+                last_updated=rh.date.isoformat() if rh.date else None,
+                trend=standing_trend(rh.elo_rating, history_by_team.get(rh.team_id, [])),
+            )
         )
     return standings
+
+
+def _standing_row(
+    *,
+    rank: int,
+    team: Team,
+    elo_rating: float,
+    last_updated: str | None,
+    trend: int | None,
+) -> dict:
+    return {
+        "rank": rank,
+        "team_id": team.id,
+        "league": team.league,
+        "name": team.name,
+        "abbreviation": team.abbreviation,
+        "elo_rating": elo_rating,
+        "last_updated": last_updated,
+        "trend": trend,
+    }
+
+
+async def _elo_history_by_team(db: AsyncSession, team_ids: list[int]) -> dict[int, list[float]]:
+    if not team_ids:
+        return {}
+    history_stmt = (
+        select(RatingHistory)
+        .where(RatingHistory.team_id.in_(team_ids))
+        .order_by(RatingHistory.team_id, RatingHistory.date.asc(), RatingHistory.id.asc())
+    )
+    history_rows = (await db.execute(history_stmt)).scalars().all()
+    grouped: dict[int, list[float]] = defaultdict(list)
+    for rh in history_rows:
+        grouped[rh.team_id].append(rh.elo_rating)
+    return grouped
 
 
 @router.get("/meta/last-refresh")
@@ -250,11 +283,11 @@ async def get_accuracy(
     league: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    # ESPN stores STATUS_FINAL; seed/tests may use "completed".
+    # ESPN stores STATUS_FINAL; seed/tests may use "completed". Both are completed.
     stmt = (
         select(Game)
         .options(selectinload(Game.prediction))
-        .where(Game.status.in_(("STATUS_FINAL", "completed")))
+        .where(Game.status.in_(COMPLETED_STATUSES))
         .where(Game.home_score.is_not(None))
         .where(Game.away_score.is_not(None))
         .where(Game.prediction.has())
@@ -342,3 +375,24 @@ async def admin_backfill(
 
     status = "backfill_completed" if not errors else "backfill_completed_with_errors"
     return {"status": status, "results": results, "errors": errors}
+
+
+@router.post(
+    "/admin/regress-season",
+    responses={400: {"description": "Unknown league"}},
+)
+async def admin_regress_season(
+    admin_token: str = Depends(verify_admin),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    league: str = Query(..., description="League key (nfl, nba, mlb, nhl, epl)."),
+):
+    """Regress Elo 25% toward 1500 at a season boundary.
+
+    Not run during ESPN sync. Call once after the prior season is processed and
+    before new-season games should inherit unregressed ratings. Safe to retry:
+    already-applied seasons return ``season_regression_already_applied``.
+    """
+    league_key = league.lower()
+    if league_key not in LEAGUE_MAP:
+        raise HTTPException(status_code=400, detail="Unknown league")
+    return await apply_season_regression(db, league_key)
