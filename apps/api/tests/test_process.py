@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Game, Prediction, Rating, Team
+from db.models import Game, Prediction, Rating, RatingHistory, Team
 from engine.elo import EloEngine
 from engine.process import run_elo_pipeline, update_predictions
 
@@ -173,3 +173,20 @@ async def test_pipeline_writes_prediction_then_processes_final_without_rewriting
         )
     ).scalar_one()
     assert post.home_win_prob == pytest.approx(pre_home)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_processes_seed_completed_status(get_db_session: AsyncSession):
+    await _seed_nba_matchup(get_db_session, home_elo=1500.0, away_elo=1500.0)
+    get_db_session.add(_game(game_id=17, status="completed", days=-1, scores=(110, 90)))
+    await get_db_session.commit()
+
+    await run_elo_pipeline(get_db_session, "nba")
+
+    history = (await get_db_session.execute(select(RatingHistory))).scalars().all()
+    assert {row.game_id for row in history} == {17}
+    home = await get_db_session.get(Rating, 1)
+    away = await get_db_session.get(Rating, 2)
+    assert home is not None and away is not None
+    assert home.elo_rating > 1500
+    assert away.elo_rating < 1500

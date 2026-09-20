@@ -5,10 +5,13 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import FetchRun, Game, Team
+from engine.game_status import normalize_game_status
+from engine.matchups import dedupe_mirror_matchups, game_calendar_day
 from engine.process import run_elo_pipeline
 
 from .client import get_client
@@ -84,6 +87,13 @@ def current_season_window(league: str, as_of: date | None = None) -> tuple[date,
     as_of = as_of or datetime.now(UTC).date()
     start, season_end = _season_bounds(league.lower(), as_of)
     return start, min(season_end, as_of)
+
+
+def current_season_start(league: str, as_of: date | None = None) -> date:
+    """Unclipped start date of the league season containing ``as_of``."""
+    as_of = as_of or datetime.now(UTC).date()
+    start, _end = _season_bounds(league.lower(), as_of)
+    return start
 
 
 MAX_BACKFILL_DAYS = 400
@@ -166,6 +176,8 @@ async def upsert_teams(session: AsyncSession, teams: list[dict[str, Any]]) -> No
 async def upsert_games(session: AsyncSession, games: list[dict[str, Any]]) -> None:
     if not games:
         return
+    for game in games:
+        game["status"] = normalize_game_status(str(game["status"]))
     game_stmt = insert(Game).values(games)
     game_stmt = game_stmt.on_conflict_do_update(
         index_elements=["id"],
@@ -283,7 +295,7 @@ def _parse_scoreboard_event(
         "away_team_id": away_row["id"],
         "home_score": _competitor_score(home_competitor),
         "away_score": _competitor_score(away_competitor),
-        "status": status_name,
+        "status": normalize_game_status(status_name),
     }
     return [home_row, away_row], game
 
@@ -299,15 +311,43 @@ def parse_scoreboard(league: str, payload: dict[str, Any]) -> tuple[list[dict[st
         event_teams, game = parsed
         teams.extend(event_teams)
         games.append(game)
-    return teams, games
+    return teams, dedupe_mirror_matchups(games)
 
 
 async def ingest_scoreboard(league: str, session: AsyncSession, board_date: str | None = None) -> int:
     data = await fetch_scoreboard(league, board_date)
     teams, games = parse_scoreboard(league, data)
+    games = await _reject_mirrors_of_existing(session, games)
     await upsert_teams(session, teams)
     await upsert_games(session, games)
     return len(games)
+
+
+async def _reject_mirrors_of_existing(session: AsyncSession, games: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Skip incoming games that reverse an already-stored same-day matchup."""
+    if not games:
+        return games
+    league = str(games[0]["league"])
+    days = [game_calendar_day(game) for game in games]
+    start = datetime.fromisoformat(min(days)).replace(tzinfo=UTC)
+    end = datetime.fromisoformat(max(days)).replace(tzinfo=UTC) + timedelta(days=1)
+    existing = (
+        (await session.execute(select(Game).where(Game.league == league, Game.date >= start, Game.date < end)))
+        .scalars()
+        .all()
+    )
+    existing_rows = [
+        {
+            "id": row.id,
+            "league": row.league,
+            "date": row.date,
+            "home_team_id": row.home_team_id,
+            "away_team_id": row.away_team_id,
+        }
+        for row in existing
+    ]
+    kept_ids = {game["id"] for game in dedupe_mirror_matchups([*existing_rows, *games])}
+    return [game for game in games if game["id"] in kept_ids]
 
 
 async def _record_fetch_run(session: AsyncSession, league: str, status: str) -> None:

@@ -4,7 +4,7 @@ Production topology: only the Next.js web service is public. The FastAPI API and
 
 ## Admin authentication
 
-Admin routes (`POST /api/v1/admin/refresh`, `POST /api/v1/admin/reset-and-refresh`) require the **`X-Admin-Token`** header. They do **not** accept `Authorization: Bearer`.
+Admin routes (`POST /api/v1/admin/refresh`, `POST /api/v1/admin/reset-and-refresh`, `POST /api/v1/admin/backfill`, `POST /api/v1/admin/regress-season`) require the **`X-Admin-Token`** header. They do **not** accept `Authorization: Bearer`.
 
 ```bash
 curl -X POST "$API_URL/admin/refresh" \
@@ -15,6 +15,17 @@ curl -X POST "$API_URL/admin/refresh" \
 - **Production (Railway):** `ADMIN_TOKEN` is required and must not be `development_token`. The API refuses to treat the local default as valid when `RAILWAY_ENVIRONMENT` (or `RAILWAY_ENVIRONMENT_ID` / `RAILWAY_ENVIRONMENT_NAME`, or `ENVIRONMENT=production`) is set. Set a real token in the Railway dashboard; do not rely on agents to flip env vars.
 
 Admin routes are also lightly rate-limited in-process (per client IP) to slow brute-force attempts.
+
+## Season Elo regression
+
+`EloEngine.regress_rating` is **not** applied during ESPN sync. At a league season boundary, call:
+
+```bash
+curl -X POST "$API_URL/admin/regress-season?league=nba" \
+  -H "X-Admin-Token: $ADMIN_TOKEN"
+```
+
+That moves every current rating 25% toward 1500 and writes `rating_history` rows with `game_id` null. A `FetchRun` status of `season_regression:<season-start>` makes the call a no-op if the same season was already regressed. Do this after the prior season's finals are processed and before new-season games should inherit unregressed Elo.
 
 ## Database seed / wipe scripts are local-only
 

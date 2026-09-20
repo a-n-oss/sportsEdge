@@ -208,6 +208,10 @@ async def test_games_status_accepts_comma_separated_completed(async_client: Asyn
     ids = {g["id"] for g in response.json()}
     assert ids == {201, 202}
 
+    aliased = await async_client.get("/api/v1/games?status=completed")
+    assert aliased.status_code == 200
+    assert {g["id"] for g in aliased.json()} == {201, 202}
+
 
 @pytest.mark.asyncio
 async def test_standings_and_accuracy(async_client: AsyncClient, get_db_session: AsyncSession):

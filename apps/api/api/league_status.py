@@ -5,10 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Game, Rating, Team
+from engine.game_status import SCHEDULED_STATUSES
 from engine.league_readiness import is_league_ready
 from fetchers.espn import LEAGUE_MAP
 
-UPCOMING_STATUSES = ("STATUS_SCHEDULED", "scheduled")
+UPCOMING_STATUSES = SCHEDULED_STATUSES
 
 
 async def league_status_rows(session: AsyncSession) -> list[dict[str, str | bool]]:

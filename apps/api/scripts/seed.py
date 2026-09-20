@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.runtime import assert_not_production
 from db.models import Base, FetchRun, Game, Prediction, Rating, RatingHistory, Team
+from engine.game_status import STATUS_FINAL, STATUS_SCHEDULED
 from fetchers.espn import namespaced_team_id
 
 
@@ -46,7 +47,7 @@ async def seed():
             id=101,
             league="nba",
             date=past_date,
-            status="completed",
+            status=STATUS_FINAL,
             home_team_id=lakers_id,
             away_team_id=celtics_id,
             home_score=110,
@@ -63,7 +64,7 @@ async def seed():
             id=102,
             league="nba",
             date=future_date_1,
-            status="scheduled",
+            status=STATUS_SCHEDULED,
             home_team_id=warriors_id,
             away_team_id=lakers_id,
             home_score=None,
@@ -73,7 +74,7 @@ async def seed():
             id=103,
             league="nba",
             date=future_date_2,
-            status="scheduled",
+            status=STATUS_SCHEDULED,
             home_team_id=celtics_id,
             away_team_id=heat_id,
             home_score=None,
