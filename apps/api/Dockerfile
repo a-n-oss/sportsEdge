@@ -17,4 +17,6 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Dual-stack bind (IPv4+IPv6) for Railway private DNS + healthchecks.
+# Matches railway.json startCommand: python start.py
+CMD ["python", "start.py"]
