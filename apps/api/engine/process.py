@@ -105,7 +105,7 @@ async def update_predictions(session: AsyncSession, league: str) -> None:
     """Generate or update predictions for scheduled games only.
 
     Accuracy/history require a scheduled→final cycle: we never invent
-    retrospective predictions for games first seen already STATUS_FINAL
+    retrospective predictions for games first seen already completed
     or in-progress. Existing prediction rows are left intact once status
     leaves the scheduled set (Elo moves can still refresh remaining
     scheduled games).

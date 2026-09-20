@@ -283,7 +283,7 @@ async def get_accuracy(
     league: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    # ESPN stores STATUS_FINAL; seed/tests may use "completed". Both are completed.
+    # Completed aliases: STATUS_FINAL, soccer STATUS_FULL_TIME/STATUS_FT, seed "completed".
     stmt = (
         select(Game)
         .options(selectinload(Game.prediction))

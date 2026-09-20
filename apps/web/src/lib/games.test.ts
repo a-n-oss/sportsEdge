@@ -59,6 +59,11 @@ describe("isCompletedStatus / sortCompleted", () => {
     expect(isCompletedStatus("STATUS_SCHEDULED")).toBe(false)
   })
 
+  it("treats ESPN soccer STATUS_FULL_TIME as completed", () => {
+    expect(isCompletedStatus("STATUS_FULL_TIME")).toBe(true)
+    expect(isCompletedStatus("STATUS_FT")).toBe(true)
+  })
+
   it("includes STATUS_FINAL games with predictions", () => {
     const games = [
       game({

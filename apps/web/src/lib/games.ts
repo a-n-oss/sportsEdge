@@ -1,8 +1,15 @@
 import type { Game, Prediction } from "@/lib/api"
 
 /** ESPN scoreboards use STATUS_*; seed/tests may use short labels. */
+const COMPLETED_STATUSES = new Set([
+  "STATUS_FINAL",
+  "completed",
+  "STATUS_FULL_TIME",
+  "STATUS_FT",
+])
+
 export function isCompletedStatus(status: string): boolean {
-  return status === "STATUS_FINAL" || status === "completed"
+  return COMPLETED_STATUSES.has(status)
 }
 
 export type OutcomeSide = "home" | "away" | "draw"
