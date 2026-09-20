@@ -42,7 +42,8 @@ async def test_apply_season_regression_moves_ratings_25_percent_toward_mean(get_
     assert result["teams_updated"] == 2
     home = await get_db_session.get(Rating, 1)
     away = await get_db_session.get(Rating, 2)
-    assert home is not None and away is not None
+    assert home is not None
+    assert away is not None
     assert home.elo_rating == EloEngine.regress_rating(1900.0)
     assert away.elo_rating == EloEngine.regress_rating(1100.0)
 

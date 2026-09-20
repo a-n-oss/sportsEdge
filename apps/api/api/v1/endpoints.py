@@ -377,7 +377,10 @@ async def admin_backfill(
     return {"status": status, "results": results, "errors": errors}
 
 
-@router.post("/admin/regress-season")
+@router.post(
+    "/admin/regress-season",
+    responses={400: {"description": "Unknown league"}},
+)
 async def admin_regress_season(
     admin_token: str = Depends(verify_admin),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008

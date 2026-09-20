@@ -187,6 +187,7 @@ async def test_pipeline_processes_seed_completed_status(get_db_session: AsyncSes
     assert {row.game_id for row in history} == {17}
     home = await get_db_session.get(Rating, 1)
     away = await get_db_session.get(Rating, 2)
-    assert home is not None and away is not None
+    assert home is not None
+    assert away is not None
     assert home.elo_rating > 1500
     assert away.elo_rating < 1500
