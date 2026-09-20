@@ -4,9 +4,16 @@ import type { Game } from "./api"
 import {
   COMPLETED_STATUS_QUERY,
   dedupeMirrorMatchups,
+  formatGameStatus,
+  gameScoreDisplay,
+  gameStatusDisplay,
+  hasEloTrend,
   isCompletedStatus,
   predictionCloseness,
+  predictionEmptyCopy,
+  recentForm,
   sortCompleted,
+  statusPillText,
 } from "./games"
 
 function game(partial: Partial<Game> & Pick<Game, "id" | "home_team_id" | "away_team_id">): Game {
@@ -179,5 +186,213 @@ describe("predictionCloseness", () => {
         })
       )
     ).toBeNull()
+  })
+})
+
+describe("formatGameStatus", () => {
+  it("maps ESPN and seed labels to human copy, never raw enums", () => {
+    expect(formatGameStatus("STATUS_SCHEDULED").label).toBe("Scheduled")
+    expect(formatGameStatus("scheduled").label).toBe("Scheduled")
+    expect(formatGameStatus("STATUS_PREGAME").label).toBe("Pregame")
+    expect(formatGameStatus("warmup").label).toBe("Pregame")
+    expect(formatGameStatus("STATUS_IN_PROGRESS").label).toBe("Live")
+    expect(formatGameStatus("STATUS_HALFTIME").label).toBe("Halftime")
+    expect(formatGameStatus("STATUS_FINAL").label).toBe("Final")
+    expect(formatGameStatus("completed").label).toBe("Final")
+    expect(formatGameStatus("STATUS_FULL_TIME").label).toBe("Final")
+    expect(formatGameStatus("FULL_TIME").label).toBe("Final")
+    expect(formatGameStatus("STATUS_POSTPONED").label).toBe("Postponed")
+    expect(formatGameStatus("STATUS_CANCELED").label).toBe("Canceled")
+    expect(formatGameStatus("cancelled").label).toBe("Canceled")
+    expect(formatGameStatus("STATUS_DELAYED").label).toBe("Delayed")
+    expect(formatGameStatus("STATUS_WHO_KNOWS").label).toBe("TBD")
+  })
+
+  it("adds live period chips for soccer halves and numbered periods", () => {
+    expect(statusPillText(formatGameStatus("STATUS_FIRST_HALF"))).toBe("Live · 1H")
+    expect(statusPillText(formatGameStatus("STATUS_SECOND_HALF"))).toBe("Live · 2H")
+    expect(statusPillText(formatGameStatus("STATUS_FIRST_QUARTER"))).toBe("Live · Q1")
+    expect(statusPillText(formatGameStatus("STATUS_END_PERIOD"))).toBe("Live")
+    expect(statusPillText(formatGameStatus("STATUS_OVERTIME"))).toBe("Live · OT")
+    expect(statusPillText(formatGameStatus("Q2"))).toBe("Live · Q2")
+    expect(statusPillText(formatGameStatus("STATUS_PERIOD_2"))).toBe("Live · P2")
+  })
+
+  it("never returns a STATUS_ token as the visible label", () => {
+    for (const raw of [
+      "STATUS_SCHEDULED",
+      "STATUS_FINAL",
+      "STATUS_FULL_TIME",
+      "STATUS_FIRST_HALF",
+      "STATUS_SECOND_HALF",
+    ]) {
+      const display = formatGameStatus(raw)
+      expect(display.label.startsWith("STATUS_")).toBe(false)
+      expect(statusPillText(display)).not.toMatch(/STATUS_/)
+    }
+  })
+})
+
+describe("gameScoreDisplay", () => {
+  it("hides 0-0 and any score for scheduled, pregame, postponed, canceled, delayed, TBD", () => {
+    const hiddenStatuses = [
+      "STATUS_SCHEDULED",
+      "STATUS_PREGAME",
+      "STATUS_POSTPONED",
+      "STATUS_CANCELED",
+      "STATUS_DELAYED",
+      "STATUS_WHO_KNOWS",
+    ]
+    for (const status of hiddenStatuses) {
+      expect(
+        gameScoreDisplay(
+          game({
+            id: 10,
+            home_team_id: 1,
+            away_team_id: 2,
+            status,
+            home_score: 0,
+            away_score: 0,
+          })
+        )
+      ).toEqual({ mode: "hidden" })
+    }
+  })
+
+  it("shows live and final scores, including a real 0-0 final", () => {
+    expect(
+      gameScoreDisplay(
+        game({
+          id: 11,
+          home_team_id: 1,
+          away_team_id: 2,
+          status: "STATUS_SECOND_HALF",
+          home_score: 1,
+          away_score: 0,
+        })
+      )
+    ).toEqual({ mode: "score", away: 0, home: 1 })
+
+    expect(
+      gameScoreDisplay(
+        game({
+          id: 12,
+          home_team_id: 1,
+          away_team_id: 2,
+          status: "STATUS_FINAL",
+          home_score: 0,
+          away_score: 0,
+        })
+      )
+    ).toEqual({ mode: "score", away: 0, home: 0 })
+  })
+
+  it("shows Score unavailable when live or final is missing scores", () => {
+    expect(
+      gameScoreDisplay(
+        game({
+          id: 13,
+          home_team_id: 1,
+          away_team_id: 2,
+          status: "STATUS_FINAL",
+          home_score: null,
+          away_score: null,
+        })
+      )
+    ).toEqual({ mode: "unavailable" })
+  })
+
+  it("keeps History finals in sync: non-zero scores on a stale scheduled row show Final (updating…)", () => {
+    const stale = game({
+      id: 14,
+      home_team_id: 1,
+      away_team_id: 2,
+      status: "STATUS_SCHEDULED",
+      home_score: 110,
+      away_score: 105,
+    })
+    expect(statusPillText(gameStatusDisplay(stale))).toBe("Final (updating…)")
+    expect(gameScoreDisplay(stale)).toEqual({ mode: "score", away: 105, home: 110 })
+  })
+})
+
+describe("recentForm", () => {
+  it("builds a last-5 W/D/L strip from completed games and ignores scheduled 0-0 noise", () => {
+    const games = [
+      game({
+        id: 1,
+        home_team_id: 21,
+        away_team_id: 10,
+        status: "STATUS_SCHEDULED",
+        home_score: 0,
+        away_score: 0,
+        date: "2026-09-20T00:00:00Z",
+      }),
+      game({
+        id: 2,
+        home_team_id: 21,
+        away_team_id: 10,
+        status: "STATUS_FINAL",
+        home_score: 3,
+        away_score: 1,
+        date: "2026-09-18T00:00:00Z",
+      }),
+      game({
+        id: 3,
+        home_team_id: 10,
+        away_team_id: 21,
+        status: "STATUS_FULL_TIME",
+        home_score: 2,
+        away_score: 2,
+        date: "2026-09-17T00:00:00Z",
+      }),
+    ]
+
+    expect(recentForm(games, 21)).toEqual(["W", "D"])
+  })
+
+  it("returns an empty strip when there are no real results", () => {
+    expect(
+      recentForm(
+        [
+          game({
+            id: 1,
+            home_team_id: 21,
+            away_team_id: 10,
+            status: "STATUS_SCHEDULED",
+            home_score: 0,
+            away_score: 0,
+          }),
+        ],
+        21
+      )
+    ).toEqual([])
+  })
+})
+
+describe("hasEloTrend", () => {
+  it("hides the chart when fewer than two history points exist", () => {
+    expect(hasEloTrend([{ date: "2026-09-18" }], [])).toBe(false)
+    expect(hasEloTrend([], [])).toBe(false)
+  })
+
+  it("shows the chart when a team has a real series", () => {
+    expect(
+      hasEloTrend(
+        [
+          { date: "2026-09-10" },
+          { date: "2026-09-18" },
+        ],
+        []
+      )
+    ).toBe(true)
+  })
+})
+
+describe("predictionEmptyCopy", () => {
+  it("uses honest copy for missing probs instead of Predictions pending", () => {
+    expect(predictionEmptyCopy("scheduled")).toBe("Edge available closer to tip-off.")
+    expect(predictionEmptyCopy("final")).toBe("No pre-game pick stored for this match.")
+    expect(predictionEmptyCopy("live")).toBeNull()
   })
 })

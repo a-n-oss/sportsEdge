@@ -3,13 +3,25 @@ import {
   getGames,
   getStandings,
   getTeamRatingHistory,
+  type Game,
+  type Team,
 } from "@/lib/api"
 import { TeamMonogram } from "@/components/TeamMonogram"
 import { WinProbBar } from "@/components/WinProbBar"
 import { RatingChart } from "@/components/RatingChart"
 import { Badge } from "@/components/ui/badge"
 import { formatElo, formatProb } from "@/lib/format"
-import { isCompletedStatus } from "@/lib/games"
+import {
+  gameScoreDisplay,
+  gameStatusDisplay,
+  hasEloTrend,
+  predictionCloseness,
+  predictionEmptyCopy,
+  recentForm,
+  statusPillText,
+  type FormResult,
+} from "@/lib/games"
+import { formatLeagueLabel } from "@/lib/league"
 import { format, parseISO } from "date-fns"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -37,6 +49,8 @@ export default async function MatchupPage({
   const homeAbbr = home?.abbreviation ?? "HOM"
   const awayAbbr = away?.abbreviation ?? "AWY"
   const pred = game.prediction
+  const status = gameStatusDisplay(game)
+  const close = predictionCloseness(game)
 
   const [standings, homeHistory, awayHistory, leagueGames] = await Promise.all([
     getStandings(game.league).catch(() => []),
@@ -55,30 +69,14 @@ export default async function MatchupPage({
   const eloDiff =
     homeElo != null && awayElo != null ? homeElo - awayElo : null
 
-  const formFor = (teamId: number) => {
-    return leagueGames
-      .filter(
-        (g) =>
-          (g.home_team_id === teamId || g.away_team_id === teamId) &&
-          isCompletedStatus(g.status) &&
-          g.home_score != null &&
-          g.away_score != null
-      )
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 10)
-      .map((g) => {
-        const isHome = g.home_team_id === teamId
-        const my = isHome ? g.home_score! : g.away_score!
-        const opp = isHome ? g.away_score! : g.home_score!
-        if (my > opp) return "W"
-        if (my < opp) return "L"
-        return "D"
-      })
-  }
-
-  const homeForm = formFor(game.home_team_id)
-  const awayForm = formFor(game.away_team_id)
+  const homeForm = recentForm(leagueGames, game.home_team_id)
+  const awayForm = recentForm(leagueGames, game.away_team_id)
   const awayColors = monogramColors(awayAbbr)
+  const showTrend = hasEloTrend(homeHistory, awayHistory)
+  const showPreGameEdgeLabel =
+    Boolean(pred) &&
+    (status.kind === "live" || status.kind === "halftime" || status.kind === "final")
+  const emptyPredCopy = pred ? null : predictionEmptyCopy(status.kind)
 
   return (
     <div className="space-y-8">
@@ -90,76 +88,30 @@ export default async function MatchupPage({
           ← Back to board
         </Link>
         <Badge variant="outline" className="uppercase tracking-wider">
-          {game.league}
+          {formatLeagueLabel(game.league)}
         </Badge>
       </div>
 
       <section className="panel animate-featured-in overflow-hidden p-4 sm:p-6 md:p-10">
         <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:mb-8 sm:gap-4 md:gap-10">
-          <Link
-            href={away ? `/teams/${away.id}` : "#"}
-            className="group flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3"
-          >
-            <TeamMonogram
-              abbreviation={awayAbbr}
-              size="lg"
-              className="h-14 w-14 text-base sm:h-20 sm:w-20 sm:text-xl"
-            />
-            <div className="min-w-0 w-full">
-              <p className="font-display text-xl uppercase tracking-wide transition-colors group-hover:text-primary sm:text-2xl">
-                {awayAbbr}
-              </p>
-              <p className="truncate text-xs text-muted-foreground sm:text-sm">{away?.name}</p>
-              {awayElo != null && (
-                <p className="mt-2 font-mono-stat text-base tabular-nums sm:text-lg">
-                  {formatElo(awayElo)}
-                </p>
-              )}
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</p>
-            </div>
-          </Link>
+          <TeamIdentity team={away} abbr={awayAbbr} elo={awayElo} href={away ? `/teams/${away.id}` : "#"} />
 
-          <div className="shrink-0 px-1 text-center sm:px-2">
-            <p className="font-display text-lg text-muted-foreground sm:text-xl">VS</p>
-            <p className="mt-2 font-mono-stat text-[10px] text-muted-foreground sm:text-xs">
-              {format(parseISO(game.date), "MMM d, yyyy")}
-            </p>
-            <p className="font-mono-stat text-[10px] text-muted-foreground sm:text-xs">
-              {format(parseISO(game.date), "h:mm a")}
-            </p>
-            <p className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-              {game.status}
-            </p>
-            {game.home_score != null && game.away_score != null && (
-              <p className="mt-3 font-mono-stat text-xl tabular-nums text-primary sm:text-2xl">
-                {game.away_score} – {game.home_score}
-              </p>
-            )}
-          </div>
+          <KickoffAndScore game={game} />
 
-          <Link
+          <TeamIdentity
+            team={home}
+            abbr={homeAbbr}
+            elo={homeElo}
             href={home ? `/teams/${home.id}` : "#"}
-            className="group flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3"
-          >
-            <TeamMonogram
-              abbreviation={homeAbbr}
-              size="lg"
-              className="h-14 w-14 text-base sm:h-20 sm:w-20 sm:text-xl"
-            />
-            <div className="min-w-0 w-full">
-              <p className="font-display text-xl uppercase tracking-wide text-primary group-hover:underline sm:text-2xl">
-                {homeAbbr}
-              </p>
-              <p className="truncate text-xs text-muted-foreground sm:text-sm">{home?.name}</p>
-              {homeElo != null && (
-                <p className="mt-2 font-mono-stat text-base tabular-nums text-primary sm:text-lg">
-                  {formatElo(homeElo)}
-                </p>
-              )}
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</p>
-            </div>
-          </Link>
+            home
+          />
         </div>
+
+        {showPreGameEdgeLabel && (
+          <p className="mb-2 text-center font-display text-xs uppercase tracking-[0.15em] text-primary">
+            Pre-game edge
+          </p>
+        )}
 
         {pred ? (
           <WinProbBar
@@ -170,25 +122,38 @@ export default async function MatchupPage({
             awayLabel={awayAbbr}
           />
         ) : (
-          <p className="text-center text-muted-foreground">Predictions pending…</p>
+          emptyPredCopy && (
+            <p className="text-center text-sm text-muted-foreground">{emptyPredCopy}</p>
+          )
+        )}
+
+        {close && (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <Badge variant={close.favoriteHit ? "default" : "destructive"} className="text-[10px]">
+              {close.favoriteHit ? "Hit" : "Miss"}
+            </Badge>
+            <span className="font-mono-stat text-xs tabular-nums text-primary">
+              Close {formatProb(close.winnerProb)}
+            </span>
+          </div>
         )}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="panel p-5 space-y-4">
+      <div className={`grid gap-6 ${showTrend ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+        <section className="panel space-y-4 p-5">
           <h2 className="font-display text-sm uppercase tracking-[0.15em] text-primary">
             Why This Edge
           </h2>
           <ul className="space-y-3 text-sm text-muted-foreground">
             <li className="border-b border-border/60 pb-3">
-              <span className="text-foreground font-medium">Home-field advantage</span>
+              <span className="font-medium text-foreground">Home-field advantage</span>
               <p className="mt-1 font-mono-stat text-xs">
                 +{DEFAULT_HFA} Elo applied to {homeAbbr} (league default)
               </p>
             </li>
             {eloDiff != null && (
               <li className="border-b border-border/60 pb-3">
-                <span className="text-foreground font-medium">Elo differential</span>
+                <span className="font-medium text-foreground">Elo differential</span>
                 <p className="mt-1 font-mono-stat text-xs">
                   {homeAbbr} {eloDiff >= 0 ? "+" : ""}
                   {formatElo(eloDiff)} vs {awayAbbr} (raw, pre-HFA)
@@ -197,7 +162,7 @@ export default async function MatchupPage({
             )}
             {pred && (
               <li>
-                <span className="text-foreground font-medium">Model takeaway</span>
+                <span className="font-medium text-foreground">Model takeaway</span>
                 <p className="mt-1 text-xs leading-relaxed">
                   {pred.home_win_prob >= pred.away_win_prob
                     ? `${homeAbbr} is favored at ${formatProb(pred.home_win_prob)} win probability.`
@@ -208,71 +173,15 @@ export default async function MatchupPage({
           </ul>
         </section>
 
-        <section className="panel p-5 space-y-4">
+        <section className="panel space-y-4 p-5">
           <h2 className="font-display text-sm uppercase tracking-[0.15em]">Recent Form</h2>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <TeamMonogram abbreviation={awayAbbr} size="sm" />
-                <span className="font-display text-xs uppercase">{awayAbbr}</span>
-                <span className="font-mono-stat text-xs text-muted-foreground ml-auto">
-                  {awayForm.filter((r) => r === "W").length}-{awayForm.filter((r) => r === "L").length}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {awayForm.length === 0 && (
-                  <span className="text-xs text-muted-foreground">No recent results</span>
-                )}
-                {awayForm.map((r, i) => (
-                  <span
-                    key={i}
-                    className={`w-6 h-6 rounded-full text-[10px] font-bold inline-flex items-center justify-center ${
-                      r === "W"
-                        ? "bg-primary text-primary-foreground"
-                        : r === "L"
-                          ? "bg-destructive/80 text-white"
-                          : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    {r}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <TeamMonogram abbreviation={homeAbbr} size="sm" />
-                <span className="font-display text-xs uppercase">{homeAbbr}</span>
-                <span className="font-mono-stat text-xs text-muted-foreground ml-auto">
-                  {homeForm.filter((r) => r === "W").length}-{homeForm.filter((r) => r === "L").length}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {homeForm.length === 0 && (
-                  <span className="text-xs text-muted-foreground">No recent results</span>
-                )}
-                {homeForm.map((r, i) => (
-                  <span
-                    key={i}
-                    className={`w-6 h-6 rounded-full text-[10px] font-bold inline-flex items-center justify-center ${
-                      r === "W"
-                        ? "bg-primary text-primary-foreground"
-                        : r === "L"
-                          ? "bg-destructive/80 text-white"
-                          : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    {r}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
+          <FormRow abbr={awayAbbr} form={awayForm} />
+          <FormRow abbr={homeAbbr} form={homeForm} />
         </section>
 
-        <section className="panel p-5 lg:col-span-1 space-y-2">
-          <h2 className="font-display text-sm uppercase tracking-[0.15em]">Elo Trend</h2>
-          {homeHistory.length > 0 || awayHistory.length > 0 ? (
+        {showTrend && (
+          <section className="panel space-y-2 p-5 lg:col-span-1">
+            <h2 className="font-display text-sm uppercase tracking-[0.15em]">Elo Trend</h2>
             <RatingChart
               series={[
                 {
@@ -289,10 +198,129 @@ export default async function MatchupPage({
                 },
               ]}
             />
-          ) : (
-            <p className="text-sm text-muted-foreground py-8 text-center">No history yet.</p>
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TeamIdentity({
+  team,
+  abbr,
+  elo,
+  href,
+  home = false,
+}: {
+  team: Team | undefined
+  abbr: string
+  elo: number | null
+  href: string
+  home?: boolean
+}) {
+  return (
+    <Link href={href} className="group flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3">
+      <TeamMonogram
+        abbreviation={abbr}
+        size="lg"
+        className="h-14 w-14 text-base sm:h-20 sm:w-20 sm:text-xl"
+      />
+      <div className="min-w-0 w-full">
+        <p
+          className={`truncate font-display text-lg uppercase tracking-wide sm:text-xl ${
+            home ? "text-primary group-hover:underline" : "transition-colors group-hover:text-primary"
+          }`}
+        >
+          {team?.name ?? abbr}
+        </p>
+        <p className="font-mono-stat text-[10px] uppercase tracking-wider text-muted-foreground">
+          {abbr}
+        </p>
+        {elo != null && (
+          <p
+            className={`mt-2 font-mono-stat text-base tabular-nums sm:text-lg ${
+              home ? "text-primary" : ""
+            }`}
+          >
+            {formatElo(elo)}
+          </p>
+        )}
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Elo</p>
+      </div>
+    </Link>
+  )
+}
+
+function KickoffAndScore({ game }: { game: Game }) {
+  const score = gameScoreDisplay(game)
+  const pill = statusPillText(gameStatusDisplay(game))
+  const showScoreBesidePill = score.mode === "score"
+
+  return (
+    <div className="shrink-0 px-1 text-center sm:px-2">
+      <p className="font-display text-lg text-muted-foreground sm:text-xl">VS</p>
+      <p className="mt-2 font-mono-stat text-[10px] text-muted-foreground sm:text-xs">
+        {format(parseISO(game.date), "MMM d, yyyy")}
+      </p>
+      <p className="font-mono-stat text-[10px] text-muted-foreground sm:text-xs">
+        {format(parseISO(game.date), "h:mm a")}
+      </p>
+      {showScoreBesidePill ? (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <p className="font-mono-stat text-xl tabular-nums text-primary sm:text-2xl">
+            {score.away} – {score.home}
+          </p>
+          <Badge variant="outline" className="uppercase tracking-wider">
+            {pill}
+          </Badge>
+        </div>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {score.mode === "unavailable" && (
+            <p className="text-xs text-muted-foreground">Score unavailable</p>
           )}
-        </section>
+          <Badge variant="outline" className="uppercase tracking-wider">
+            {pill}
+          </Badge>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormRow({ abbr, form }: { abbr: string; form: FormResult[] }) {
+  const wins = form.filter((result) => result === "W").length
+  const losses = form.filter((result) => result === "L").length
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <TeamMonogram abbreviation={abbr} size="sm" />
+        <span className="font-display text-xs uppercase">{abbr}</span>
+        {form.length > 0 && (
+          <span className="ml-auto font-mono-stat text-xs text-muted-foreground">
+            {wins}-{losses}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {form.length === 0 && (
+          <span className="text-xs text-muted-foreground">No recent results yet.</span>
+        )}
+        {form.map((result, index) => (
+          <span
+            key={`${abbr}-${index}-${result}`}
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${
+              result === "W"
+                ? "bg-primary text-primary-foreground"
+                : result === "L"
+                  ? "bg-destructive/80 text-white"
+                  : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            {result}
+          </span>
+        ))}
       </div>
     </div>
   )
