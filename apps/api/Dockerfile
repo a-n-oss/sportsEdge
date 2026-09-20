@@ -14,17 +14,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev --no-install-project --no-build \
-    && chown -R appuser:appuser /opt/venv
+RUN uv sync --locked --no-dev --no-install-project --no-build
 
-COPY --chown=appuser:appuser alembic.ini start.py main.py ./
-COPY --chown=appuser:appuser api ./api
-COPY --chown=appuser:appuser core ./core
-COPY --chown=appuser:appuser db ./db
-COPY --chown=appuser:appuser engine ./engine
-COPY --chown=appuser:appuser fetchers ./fetchers
-COPY --chown=appuser:appuser migrations ./migrations
-COPY --chown=appuser:appuser scripts ./scripts
+COPY alembic.ini start.py main.py ./
+COPY api ./api
+COPY core ./core
+COPY db ./db
+COPY engine ./engine
+COPY fetchers ./fetchers
+COPY migrations ./migrations
+COPY scripts ./scripts
 
 USER appuser
 

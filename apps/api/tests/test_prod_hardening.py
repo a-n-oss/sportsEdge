@@ -210,6 +210,17 @@ def test_dockerfile_does_not_recursively_copy_the_build_context():
             assert "./" not in sources, f"recursive context copy is not allowed: {line}"
 
 
+def test_dockerfile_copied_app_files_stay_root_owned():
+    """docker:S6504 — the runtime user must not own copied application files."""
+    for raw in _dockerfile_text().splitlines():
+        line = raw.strip()
+        if not line.startswith(("COPY ", "ADD ")):
+            continue
+        if "--from=" in line:
+            continue
+        assert "--chown=" not in line, f"copied resources must remain root-owned: {line}"
+
+
 def test_dockerfile_drops_privileges_to_a_non_root_user():
     """docker:S6471 — python images default to root."""
     users = [
