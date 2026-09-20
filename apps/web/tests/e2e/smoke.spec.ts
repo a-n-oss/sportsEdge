@@ -3,12 +3,12 @@ import { test, expect } from '@playwright/test';
 test.describe('SportsEdge Smoke Tests', () => {
   test('should load the dashboard and show predictions', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('text=SportsEdge Predictions').first()).toBeVisible();
+    await expect(page.getByText('SportsEdge Predictions').first()).toBeVisible();
 
     // Seeded upcoming: Golden State Warriors (home) vs Los Angeles Lakers (away)
-    await expect(page.locator('text=GSW').first()).toBeVisible();
-    await expect(page.locator('text=LAL').first()).toBeVisible();
     await expect(page.getByText("Tonight's Edge").first()).toBeVisible();
+    await expect(page.getByText('GSW', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('LAL', { exact: true }).first()).toBeVisible();
   });
 
   test('should open a matchup detail from the board', async ({ page }) => {
@@ -22,17 +22,17 @@ test.describe('SportsEdge Smoke Tests', () => {
   });
 
   test('should navigate to teams directory and view a team detail', async ({ page }) => {
-    await page.goto('/teams');
+    // League query avoids matching the nav "NBA" chip while the directory is empty.
+    await page.goto('/teams?league=nba');
 
-    await expect(page.locator('text=NBA').first()).toBeVisible();
-    await expect(page.locator('text=Boston Celtics').first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /Boston Celtics/ }).first()).toBeVisible();
 
-    await page.click('text=Boston Celtics');
+    await page.getByRole('link', { name: /Boston Celtics/ }).first().click();
 
-    await expect(page.locator('h1', { hasText: 'Boston Celtics' })).toBeVisible();
-    await expect(page.locator('text=Elo Rating History').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Boston Celtics' })).toBeVisible();
+    await expect(page.getByText('Elo Rating History').first()).toBeVisible();
 
-    await expect(page.locator('text=1480').first()).toBeVisible();
+    await expect(page.getByText('1480').first()).toBeVisible();
   });
 
   test('should load power rankings', async ({ page }) => {

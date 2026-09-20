@@ -154,9 +154,17 @@ jobs:
       working-directory: ./apps/api
       env:
         DATABASE_URL: postgresql+asyncpg://sportsedge:sportsedge_password@localhost:5432/sportsedge_db
+        SKIP_ESPN_SCHEDULER: "1"
       run: |
         uv run uvicorn main:app --port 8000 &
-        sleep 3
+        for i in $(seq 1 30); do
+          if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "API failed to become healthy on :8000"
+        exit 1
 
     - name: Install Node.js
       uses: actions/setup-node@v6
@@ -178,6 +186,9 @@ jobs:
 
     - name: Run Playwright Tests
       working-directory: ./apps/web
+      env:
+        API_URL: http://127.0.0.1:8000/api/v1
+        PLAYWRIGHT_TEST_BASE_URL: http://127.0.0.1:3000
       run: pnpm exec playwright test
 
   sonarqube:

@@ -18,6 +18,7 @@ from core.runtime import (
     assert_not_production,
     is_production_environment,
     resolve_admin_token,
+    should_skip_espn_scheduler,
     should_skip_startup_migrations,
 )
 from db.models import Team
@@ -86,6 +87,14 @@ def test_skip_migrations_only_when_flag_is_exactly_one():
     assert should_skip_startup_migrations({"SKIP_MIGRATIONS": "1"}) is True
     assert should_skip_startup_migrations({}) is False
     assert should_skip_startup_migrations({"SKIP_MIGRATIONS": "0"}) is False
+
+
+def test_skip_espn_scheduler_only_when_flag_is_exactly_one():
+    """E2E/CI must be able to freeze the board on seed data, not the live ESPN slate."""
+    assert should_skip_espn_scheduler({"SKIP_ESPN_SCHEDULER": "1"}) is True
+    assert should_skip_espn_scheduler({}) is False
+    assert should_skip_espn_scheduler({"SKIP_ESPN_SCHEDULER": "0"}) is False
+    assert should_skip_espn_scheduler({"SKIP_ESPN_SCHEDULER": "true"}) is False
 
 
 @pytest.mark.asyncio

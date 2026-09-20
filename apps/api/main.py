@@ -11,7 +11,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.v1.endpoints import router as api_v1_router
-from core.runtime import is_production_environment, resolve_admin_token, should_skip_startup_migrations
+from core.runtime import (
+    is_production_environment,
+    resolve_admin_token,
+    should_skip_espn_scheduler,
+    should_skip_startup_migrations,
+)
 from db.session import AsyncSessionLocal
 from fetchers.espn import LEAGUE_MAP, sync_games
 from fetchers.schedule import (
@@ -108,16 +113,23 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(_run_migrations)
         logger.info("Database migrations complete.")
 
-    scheduler = build_scheduler()
-    scheduler.start()
+    scheduler = None
+    if should_skip_espn_scheduler():
+        # Seed-locked e2e: a misfired */20 cron would scrape ESPN and overwrite
+        # GSW / Boston Celtics fixtures with the live board.
+        logger.info("SKIP_ESPN_SCHEDULER=1 — ESPN scheduler not started")
+    else:
+        scheduler = build_scheduler()
+        scheduler.start()
 
-    # Kick off ESPN sync in the background so /health can pass during boot
-    if is_production_environment():
-        logger.info("Production environment detected — scheduling initial data sync...")
-        asyncio.create_task(scheduled_fetch_games())
+        # Kick off ESPN sync in the background so /health can pass during boot
+        if is_production_environment():
+            logger.info("Production environment detected — scheduling initial data sync...")
+            asyncio.create_task(scheduled_fetch_games())
 
     yield
-    scheduler.shutdown()
+    if scheduler is not None:
+        scheduler.shutdown()
 
 
 app = FastAPI(title="SportsEdge API", version="1.0.0", lifespan=lifespan)

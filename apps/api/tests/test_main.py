@@ -236,6 +236,7 @@ async def test_frequent_refresh_defaults_now_to_utc_clock(monkeypatch):
 async def test_lifespan_skips_migrations_and_starts_scheduler(monkeypatch):
     monkeypatch.setenv("SKIP_MIGRATIONS", "1")
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("SKIP_ESPN_SCHEDULER", raising=False)
     scheduler = _FakeScheduler()
     monkeypatch.setattr("main.build_scheduler", lambda: scheduler)
 
@@ -245,9 +246,32 @@ async def test_lifespan_skips_migrations_and_starts_scheduler(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_lifespan_skips_espn_scheduler_when_flagged(monkeypatch):
+    """Playwright e2e seeds GSW/BOS; a live ESPN cron must not overwrite that slate."""
+    monkeypatch.setenv("SKIP_MIGRATIONS", "1")
+    monkeypatch.setenv("SKIP_ESPN_SCHEDULER", "1")
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    scheduler = _FakeScheduler()
+    boot: list[str] = []
+
+    async def fake_sync(*args: object, **kwargs: object) -> None:
+        boot.append("sync")
+
+    monkeypatch.setattr("main.build_scheduler", lambda: scheduler)
+    monkeypatch.setattr("main.scheduled_fetch_games", fake_sync)
+
+    async with lifespan(app):
+        await async_sleep(0)
+        assert scheduler.started is False
+    assert scheduler.shutdown_called is False
+    assert boot == []
+
+
+@pytest.mark.asyncio
 async def test_lifespan_runs_migrations_when_not_skipped(monkeypatch):
     monkeypatch.delenv("SKIP_MIGRATIONS", raising=False)
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("SKIP_ESPN_SCHEDULER", raising=False)
     ran: list[str] = []
 
     def fake_migrations() -> None:
@@ -272,6 +296,7 @@ async def test_lifespan_runs_migrations_when_not_skipped(monkeypatch):
 async def test_lifespan_kicks_off_boot_sync_on_railway(monkeypatch):
     monkeypatch.setenv("SKIP_MIGRATIONS", "1")
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.delenv("SKIP_ESPN_SCHEDULER", raising=False)
     # Prod hardening refuses the documented local default; boot-sync still runs
     # when a real token is configured.
     monkeypatch.setenv("ADMIN_TOKEN", "railway-real-token")
