@@ -53,11 +53,9 @@ jobs:
         DATABASE_URL: postgresql+asyncpg://sportsedge:sportsedge_password@localhost:5432/sportsedge_db
       run: |
         uv run pytest --cov=. --cov-report=xml
-        # pytest writes filenames relative to apps/api and <source> as that dir.
-        # Prefix filenames and retarget <source> to the repo root so Sonar resolves
-        # apps/api/foo.py instead of apps/api/apps/api/foo.py (0% new-code coverage).
-        sed -i 's/filename="/filename="apps\/api\//g' coverage.xml
-        sed -i "s|<source>.*</source>|<source>${GITHUB_WORKSPACE}</source>|" coverage.xml
+        # Rewrite Cobertura <source> to repo root and prefix filenames with apps/api/
+        # so Sonar resolves apps/api/foo.py (inline sed on main was the same intent).
+        uv run python -m core.cobertura coverage.xml "${{ github.workspace }}"
 
     - name: Upload Backend Coverage
       uses: actions/upload-artifact@v7

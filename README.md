@@ -82,12 +82,22 @@ The frontend application is now running at `http://localhost:3000`.
 
 Admin routes authenticate with the **`X-Admin-Token`** header (not `Authorization: Bearer`). Locally, docker-compose sets `ADMIN_TOKEN=secret_admin_token`. If `ADMIN_TOKEN` is unset in a non-production environment, the API uses the documented default `development_token`. In production (`RAILWAY_ENVIRONMENT` or similar), a real non-default `ADMIN_TOKEN` is required.
 
+See [docs/ops.md](docs/ops.md) for production token requirements, seed/wipe guards, and `SKIP_MIGRATIONS` risk.
+
+**Daily refresh** (full roster + today's scoreboard + Elo, all leagues):
 ```bash
 curl -X POST http://localhost:8000/api/v1/admin/refresh \
   -H "X-Admin-Token: secret_admin_token"
 ```
 
-See [docs/ops.md](docs/ops.md) for production token requirements, seed/wipe guards, and `SKIP_MIGRATIONS` risk.
+**Historical backfill** (full roster, then each day's ESPN scoreboard in chronological order, then Elo). Omit `from`/`to` to use the current season for that league (clipped to today). Prefer one league at a time — a season is hundreds of ESPN calls.
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/admin/backfill?league=nba&from=2025-10-01&to=2026-04-15" \
+  -H "X-Admin-Token: secret_admin_token"
+```
+
+Failed league syncs write `FetchRun.status="error"` (they no longer record a false success). After merging this, validate backfill on staging, then give CoS/Louis a heads-up before production `POST /api/v1/admin/reset-and-refresh`.
 
 ## 🧪 Testing and Verification
 

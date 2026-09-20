@@ -1,10 +1,13 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from httpx import AsyncClient
+import respx
+from httpx import AsyncClient, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import FetchRun, Game, Prediction, Rating, RatingHistory, Team
+from fetchers.espn import LEAGUE_MAP
 
 
 @pytest.mark.asyncio
@@ -220,6 +223,171 @@ async def test_standings_and_accuracy(async_client: AsyncClient, get_db_session:
     assert refresh.status_code == 200
     assert refresh.json()["league"] == "nba"
     assert refresh.json()["timestamp"] is not None
+
+
+ADMIN_HEADERS = {"X-Admin-Token": "development_token"}
+
+
+def _espn_urls(league: str) -> tuple[str, str]:
+    sport, espn_league = LEAGUE_MAP[league]
+    base = f"https://site.api.espn.com/apis/site/v2/sports/{sport}/{espn_league}"
+    return f"{base}/scoreboard", f"{base}/teams"
+
+
+def _empty_roster() -> dict:
+    return {"sports": [{"leagues": [{"teams": []}]}]}
+
+
+def _final_event(event_id: str, date_str: str) -> dict:
+    return {
+        "id": event_id,
+        "date": date_str,
+        "status": {"type": {"name": "STATUS_FINAL"}},
+        "competitions": [
+            {
+                "competitors": [
+                    {
+                        "homeAway": "home",
+                        "team": {"id": "1", "name": "Celtics", "abbreviation": "BOS"},
+                        "score": "100",
+                    },
+                    {
+                        "homeAway": "away",
+                        "team": {"id": "2", "name": "Heat", "abbreviation": "MIA"},
+                        "score": "90",
+                    },
+                ]
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_admin_backfill_unauthorized(async_client: AsyncClient):
+    response = await async_client.post("/api/v1/admin/backfill")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_admin_backfill_rejects_unknown_league(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/admin/backfill",
+        params={"league": "wnba", "from": "2024-11-01", "to": "2024-11-02"},
+        headers=ADMIN_HEADERS,
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_admin_backfill_rejects_partial_custom_range(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/admin/backfill",
+        params={"league": "nba", "from": "2024-11-01"},
+        headers=ADMIN_HEADERS,
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_admin_backfill_syncs_requested_date_range(async_client: AsyncClient, get_db_session: AsyncSession):
+    scoreboard_url, teams_url = _espn_urls("nba")
+    day1 = {"events": [_final_event("111", "2024-11-01T00:00Z")]}
+    day2 = {"events": [_final_event("222", "2024-11-02T00:00Z")]}
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(teams_url).mock(return_value=Response(200, json=_empty_roster()))
+        respx_mock.get(scoreboard_url, params={"dates": "20241101"}).mock(return_value=Response(200, json=day1))
+        respx_mock.get(scoreboard_url, params={"dates": "20241102"}).mock(return_value=Response(200, json=day2))
+        response = await async_client.post(
+            "/api/v1/admin/backfill",
+            params={"league": "nba", "from": "2024-11-01", "to": "2024-11-02"},
+            headers=ADMIN_HEADERS,
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "backfill_completed"
+    assert body["results"][0]["league"] == "nba"
+    assert body["results"][0]["days"] == 2
+
+    games = (await get_db_session.execute(select(Game).order_by(Game.date))).scalars().all()
+    assert [g.id for g in games] == [111, 222]
+
+    run = (await get_db_session.execute(select(FetchRun))).scalar_one()
+    assert run.status == "success"
+    assert run.league == "nba"
+
+
+@pytest.mark.asyncio
+async def test_admin_refresh_syncs_all_leagues(async_client: AsyncClient, get_db_session: AsyncSession):
+    with respx.mock(assert_all_called=True) as respx_mock:
+        for league in LEAGUE_MAP:
+            scoreboard_url, teams_url = _espn_urls(league)
+            respx_mock.get(teams_url).mock(return_value=Response(200, json=_empty_roster()))
+            respx_mock.get(scoreboard_url).mock(return_value=Response(200, json={"events": []}))
+        response = await async_client.post("/api/v1/admin/refresh", headers=ADMIN_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "refresh_completed"
+    runs = (await get_db_session.execute(select(FetchRun))).scalars().all()
+    assert {run.league for run in runs} == set(LEAGUE_MAP)
+    assert all(run.status == "success" for run in runs)
+
+
+@pytest.mark.asyncio
+async def test_admin_refresh_continues_after_league_error(async_client: AsyncClient, get_db_session: AsyncSession):
+    with respx.mock(assert_all_called=True) as respx_mock:
+        for league in LEAGUE_MAP:
+            scoreboard_url, teams_url = _espn_urls(league)
+            respx_mock.get(teams_url).mock(return_value=Response(200, json=_empty_roster()))
+            status = 500 if league == "nhl" else 200
+            respx_mock.get(scoreboard_url).mock(return_value=Response(status, json={"events": []}))
+        response = await async_client.post("/api/v1/admin/refresh", headers=ADMIN_HEADERS)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "refresh_completed_with_errors"
+    assert {err["league"] for err in body["errors"]} == {"nhl"}
+    runs = (await get_db_session.execute(select(FetchRun))).scalars().all()
+    assert {run.league: run.status for run in runs}["nhl"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_admin_backfill_records_espn_failure(async_client: AsyncClient, get_db_session: AsyncSession):
+    scoreboard_url, teams_url = _espn_urls("nba")
+    with respx.mock(assert_all_called=True) as respx_mock:
+        respx_mock.get(teams_url).mock(return_value=Response(200, json=_empty_roster()))
+        respx_mock.get(scoreboard_url, params={"dates": "20241101"}).mock(return_value=Response(500))
+        response = await async_client.post(
+            "/api/v1/admin/backfill",
+            params={"league": "nba", "from": "2024-11-01", "to": "2024-11-01"},
+            headers=ADMIN_HEADERS,
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "backfill_completed_with_errors"
+    assert body["errors"][0]["league"] == "nba"
+    run = (await get_db_session.execute(select(FetchRun))).scalar_one()
+    assert run.status == "error"
+
+
+@pytest.mark.asyncio
+async def test_admin_reset_and_refresh_still_works(async_client: AsyncClient, get_db_session: AsyncSession):
+    get_db_session.add(Team(id=99, league="nba", name="Temp", abbreviation="TMP"))
+    await get_db_session.commit()
+
+    with respx.mock(assert_all_called=True) as respx_mock:
+        for league in LEAGUE_MAP:
+            scoreboard_url, teams_url = _espn_urls(league)
+            respx_mock.get(teams_url).mock(return_value=Response(200, json=_empty_roster()))
+            respx_mock.get(scoreboard_url).mock(return_value=Response(200, json={"events": []}))
+        response = await async_client.post("/api/v1/admin/reset-and-refresh", headers=ADMIN_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "reset_and_refresh_completed"
+    leftover = (await get_db_session.execute(select(Team).where(Team.id == 99))).scalar_one_or_none()
+    assert leftover is None
 
 
 @pytest.mark.asyncio

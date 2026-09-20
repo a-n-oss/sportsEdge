@@ -1,4 +1,6 @@
+import logging
 from collections import defaultdict
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
@@ -8,9 +10,10 @@ from sqlalchemy.orm import selectinload
 from api.deps import verify_admin
 from db.models import FetchRun, Game, Rating, RatingHistory, Team
 from db.session import get_db
-from fetchers.espn import LEAGUE_MAP, sync_games
+from fetchers.espn import LEAGUE_MAP, backfill_games, resolve_backfill_window, sync_games
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
+logger = logging.getLogger(__name__)
 
 _SYNCED_TABLES = (
     "predictions",
@@ -262,8 +265,15 @@ async def admin_refresh(
     admin_token: str = Depends(verify_admin),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    for league in LEAGUE_MAP.keys():
-        await sync_games(league, db)
+    errors: list[dict[str, str]] = []
+    for league in LEAGUE_MAP:
+        try:
+            await sync_games(league, db)
+        except Exception as exc:
+            logger.exception("Admin refresh failed for %s", league)
+            errors.append({"league": league, "error": str(exc)})
+    if errors:
+        return {"status": "refresh_completed_with_errors", "errors": errors}
     return {"status": "refresh_completed"}
 
 
@@ -281,6 +291,48 @@ async def admin_reset_and_refresh(
         await db.execute(text(f"TRUNCATE {table} CASCADE"))
     await db.commit()
 
-    for league in LEAGUE_MAP.keys():
+    for league in LEAGUE_MAP:
         await sync_games(league, db)
     return {"status": "reset_and_refresh_completed", "truncated_tables": list(_SYNCED_TABLES)}
+
+
+def _backfill_leagues(league: str | None) -> list[str]:
+    if league is None:
+        return list(LEAGUE_MAP)
+    league_key = league.lower()
+    if league_key not in LEAGUE_MAP:
+        raise HTTPException(status_code=400, detail="Unknown league")
+    return [league_key]
+
+
+@router.post("/admin/backfill")
+async def admin_backfill(
+    admin_token: str = Depends(verify_admin),  # noqa: B008
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    league: str | None = Query(default=None, description="League key (nfl, nba, mlb, nhl, epl). Omit to backfill all."),
+    from_date: date | None = Query(  # noqa: B008
+        default=None, alias="from", description="Inclusive start date (YYYY-MM-DD)."
+    ),
+    to_date: date | None = Query(  # noqa: B008
+        default=None, alias="to", description="Inclusive end date (YYYY-MM-DD)."
+    ),
+):
+    """Sync full rosters and historical ESPN scoreboards for a date range.
+
+    Omit from/to to use each league's current season (clipped to today).
+    """
+    leagues = _backfill_leagues(league)
+    results: list[dict] = []
+    errors: list[dict[str, str]] = []
+    for league_key in leagues:
+        try:
+            start, end = resolve_backfill_window(league_key, from_date, to_date)
+            results.append(await backfill_games(league_key, db, start, end))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Admin backfill failed for %s", league_key)
+            errors.append({"league": league_key, "error": str(exc)})
+
+    status = "backfill_completed" if not errors else "backfill_completed_with_errors"
+    return {"status": status, "results": results, "errors": errors}
